@@ -1,0 +1,352 @@
+{
+  "groups": {
+    "-1004323183572": {
+      "rules": "1. Без спама и флуда.\n2. Без рекламы и самопиара.\n3. Без оскорблений и срачей.\n4. Не обсуждаем скам и разводы.\n5. Политика и негативные новости — мимо.\n6. Без угроз и доксинга.\n7. Без наркотиков и суицидального контента.\n8. Без нацизма и разжигания ненависти.\n9. Не кидайте ботов и AI-ботов.\n10. Ведите себя нормально и уважайте других.",
+      "staff": {
+        "admins": [],
+        "senior_admins": [
+          "7542349738",
+          "8709192653",
+          "8421704058"
+        ],
+        "mods": [
+          "8421704058"
+        ]
+      },
+      "stats_today": {
+        "8249995740": {
+          "count": 85,
+          "name": "De Pavlo"
+        },
+        "7542349738": {
+          "count": 20,
+          "name": "д"
+        },
+        "8709192653": {
+          "count": 24,
+          "name": "bl"
+        },
+        "8421704058": {
+          "count": 82,
+          "name": "#38"
+        }
+      },
+      "stats_all": {},
+      "stats_date": "2026-06-14",
+      "rep_triggers_plus": [
+        "+",
+        "++",
+        "+1",
+        "+реп",
+        "уважение",
+        "красава",
+        "огонь",
+        "топ",
+        "молодец",
+        "красавчик",
+        "спасибо",
+        "благодарю",
+        "лайк",
+        "класс",
+        "супер",
+        "респект",
+        "gg"
+      ],
+      "rep_triggers_minus": [
+        "-",
+        "--",
+        "-1",
+        "-реп",
+        "бред",
+        "дизлайк",
+        "дно",
+        "зашквар",
+        "кринж",
+        "минус",
+        "мусор",
+        "отстой",
+        "плохо",
+        "позор",
+        "реп-",
+        "рофл",
+        "слабо",
+        "трэш",
+        "ужас",
+        "фу",
+        "хлам",
+        "чушь"
+      ],
+      "rep_daily_limit": 5,
+      "rep_cooldown_hours": 0.0,
+      "settings": {
+        "welcome": true,
+        "antiflood": false,
+        "antilinks": false,
+        "captcha": false
+      },
+      "rep_titles": [],
+      "total_messages": 173,
+      "staff_titles": {
+        "8421704058": "пидр",
+        "8709192653": "тупой"
+      },
+      "stats_week_label": "2026-W23",
+      "stats_week": {
+        "8421704058": {
+          "count": 46,
+          "name": "#38"
+        },
+        "8249995740": {
+          "count": 45,
+          "name": "De Pavlo"
+        },
+        "8709192653": {
+          "count": 1,
+          "name": "bl"
+        }
+      },
+      "stats_month_label": "2026-06",
+      "stats_month": {
+        "8421704058": {
+          "count": 46,
+          "name": "#38"
+        },
+        "8249995740": {
+          "count": 45,
+          "name": "De Pavlo"
+        },
+        "8709192653": {
+          "count": 1,
+          "name": "bl"
+        }
+      }
+    },
+    "-1004468679607": {
+      "rules": "1. Без спама и флуда.\n2. Без рекламы и самопиара.\n3. Без оскорблений и срачей.\n4. Не обсуждаем скам и разводы.\n5. Политика и негативные новости — мимо.\n6. Без угроз и доксинга.\n7. Без наркотиков и суицидального контента.\n8. Без нацизма и разжигания ненависти.\n9. Не кидайте ботов и AI-ботов.\n10. Ведите себя нормально и уважайте других.",
+      "staff": {
+        "admins": [],
+        "senior_admins": [],
+        "mods": []
+      },
+      "stats_today": {
+        "7542349738": {
+          "count": 3,
+          "name": "д"
+        },
+        "8709192653": {
+          "count": 5,
+          "name": "bl"
+        }
+      },
+      "stats_all": {},
+      "stats_date": "2026-06-14",
+      "total_messages": 8,
+      "rep_triggers_plus": [
+        "+",
+        "++",
+        "+1",
+        "+реп",
+        "уважение",
+        "красава",
+        "огонь",
+        "топ",
+        "молодец",
+        "красавчик",
+        "спасибо",
+        "благодарю",
+        "лайк",
+        "класс",
+        "супер",
+        "респект",
+        "gg"
+      ],
+      "rep_triggers_minus": [
+        "-",
+        "--",
+        "-1",
+        "-реп",
+        "бред",
+        "дизлайк",
+        "дно",
+        "зашквар",
+        "кринж",
+        "минус",
+        "мусор",
+        "отстой",
+        "плохо",
+        "позор",
+        "реп-",
+        "рофл",
+        "слабо",
+        "трэш",
+        "ужас",
+        "фу",
+        "хлам",
+        "чушь"
+      ],
+      "rep_daily_limit": 5,
+      "rep_cooldown_hours": 0.0,
+      "rep_titles": [],
+      "settings": {
+        "welcome": true,
+        "antiflood": false,
+        "antilinks": false,
+        "captcha": false,
+        "antispam": false
+      },
+      "stats_week_label": "2026-W23",
+      "stats_week": {
+        "7542349738": {
+          "count": 3,
+          "name": "д"
+        },
+        "8709192653": {
+          "count": 5,
+          "name": "bl"
+        }
+      },
+      "stats_month_label": "2026-06",
+      "stats_month": {
+        "7542349738": {
+          "count": 3,
+          "name": "д"
+        },
+        "8709192653": {
+          "count": 5,
+          "name": "bl"
+        }
+      },
+      "censorship": [],
+      "owner_id": null
+    }
+  },
+  "users": {
+    "-1004323183572_8249995740": {
+      "user_id": 8249995740,
+      "chat_id": -1004323183572,
+      "reputation": 1,
+      "warns": 0,
+      "violations": 0,
+      "muted_until": null,
+      "banned": false,
+      "rep_given_today": {
+        "date": "2026-06-14",
+        "count": 5,
+        "targets": []
+      },
+      "rep_received_today": 0,
+      "join_date": "2026-06-14",
+      "username": "seyats",
+      "first_name": "De Pavlo",
+      "stats_all_count": 85
+    },
+    "-1004323183572_8375872283": {
+      "user_id": 8375872283,
+      "chat_id": -1004323183572,
+      "reputation": 1,
+      "warns": 0,
+      "violations": 1,
+      "muted_until": "2026-06-14 22:25",
+      "banned": true,
+      "rep_given_today": {},
+      "rep_received_today": 0,
+      "join_date": "2026-06-14",
+      "username": null,
+      "first_name": null
+    },
+    "-1004323183572_7542349738": {
+      "user_id": 7542349738,
+      "chat_id": -1004323183572,
+      "reputation": 1,
+      "warns": 3,
+      "violations": 3,
+      "muted_until": null,
+      "banned": false,
+      "rep_given_today": {
+        "date": "2026-06-14",
+        "count": 1,
+        "targets": [
+          "8249995740"
+        ]
+      },
+      "rep_received_today": 0,
+      "join_date": "2026-06-14",
+      "username": "caronxx",
+      "first_name": "д",
+      "stats_all_count": 20
+    },
+    "-1004323183572_8709192653": {
+      "user_id": 8709192653,
+      "chat_id": -1004323183572,
+      "reputation": 0,
+      "warns": 0,
+      "violations": 0,
+      "muted_until": null,
+      "banned": false,
+      "rep_given_today": {},
+      "rep_received_today": 0,
+      "join_date": "2026-06-14",
+      "username": "Iklyu",
+      "first_name": "bl",
+      "stats_all_count": 24
+    },
+    "-1004323183572_8421704058": {
+      "user_id": 8421704058,
+      "chat_id": -1004323183572,
+      "reputation": 74,
+      "warns": 0,
+      "violations": 3,
+      "muted_until": null,
+      "banned": false,
+      "rep_given_today": {},
+      "rep_received_today": 0,
+      "join_date": "2026-06-14",
+      "username": "psychoIogicaIIy",
+      "first_name": "#38",
+      "stats_all_count": 82
+    },
+    "-1004468679607_7542349738": {
+      "user_id": 7542349738,
+      "chat_id": -1004468679607,
+      "reputation": 0,
+      "warns": 0,
+      "violations": 0,
+      "muted_until": null,
+      "banned": false,
+      "rep_given_today": {},
+      "rep_received_today": 0,
+      "join_date": "2026-06-14",
+      "username": "caronxx",
+      "first_name": "д",
+      "stats_all_count": 3
+    },
+    "-1004468679607_8709192653": {
+      "user_id": 8709192653,
+      "chat_id": -1004468679607,
+      "reputation": 0,
+      "warns": 0,
+      "violations": 0,
+      "muted_until": null,
+      "banned": false,
+      "rep_given_today": {
+        "date": "2026-06-14",
+        "count": 0,
+        "targets": []
+      },
+      "rep_received_today": 0,
+      "join_date": "2026-06-14",
+      "username": "Iklyu",
+      "first_name": "bl",
+      "stats_all_count": 5
+    }
+  },
+  "global_bans": {},
+  "approved_owners": [
+    8709192653,
+    7542349738
+  ],
+  "warned_owners": {
+    "6811529629": 1
+  },
+  "pending_approval": []
+}
