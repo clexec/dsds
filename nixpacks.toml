@@ -1,0 +1,8 @@
+[phases.setup]
+nixPkgs = ["python312", "python312Packages.pip"]
+
+[phases.install]
+cmds = ["pip3 install -r модератор/requirements.txt"]
+
+[start]
+cmd = "cd модератор && python3 bot.py"
