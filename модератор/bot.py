@@ -468,8 +468,19 @@ async def cmd_start(message: Message):
     )
     if uid == OWNER_ID:
         # Проверяем, установлен ли язык у владельца
-        user_data = get_user(db, uid, 0)
-        if not user_data.get("lang"):
+        from localization import get_user_lang
+        owner_lang = get_user_lang(uid, 0, db)
+        # Если язык — DEFAULT_LANG, но в БД его нет, считаем что язык не выбран
+        # (get_user_lang возвращает DEFAULT_LANG если в БД пусто)
+        
+        # Ищем в БД напрямую чтобы понять, был ли выбор
+        has_lang = False
+        for key, udata in db.get("users", {}).items():
+            if udata.get("user_id") == uid and udata.get("lang"):
+                has_lang = True
+                break
+        
+        if not has_lang:
             kb = InlineKeyboardMarkup(inline_keyboard=[
                 [
                     InlineKeyboardButton(text="🇷🇺 Русский", callback_data="set_initial_lang_ru"),
