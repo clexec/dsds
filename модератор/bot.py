@@ -268,7 +268,8 @@ def get_group(db: dict, chat_id: int) -> dict:
                 "captcha": False,
                 "antispam": False
             },
-            "censorship": []
+            "censorship": [],
+            "lang": "ru"  # Язык группы (баны, уведомления и т.д.)
         }
     g = db["groups"][key]
     if "rep_titles" not in g:
@@ -299,7 +300,7 @@ def get_user(db: dict, user_id: int, chat_id: int) -> dict:
             "join_date": str(date.today()),
             "username": None,
             "first_name": None,
-            "lang": "ru"  # язык интерфейса (меняется через /lang)
+            "lang": None  # Язык интерфейса. Если None — используется язык группы/чат-бота.
         }
     u = db["users"][key]
     # Миграция старой структуры rep_given_today
@@ -454,10 +455,10 @@ async def cmd_start(message: Message):
             # Показываем только кнопку запроса — ничего лишнего
             await message.answer(
                 f'{E["bot"]} <b>{tr("start_hello", uid, name="")}</b>\n\n'
-                f'{E["info"]} {tr("start_add_info", uid)}',
+                f'{E["info"]} {tr("start_add_info", uid, message.chat.id)}',
                 parse_mode=ParseMode.HTML,
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                    [btn(tr("start_request_btn", uid), "check", callback_data="request_approval_start")]
+                    [btn(tr("start_request_btn", uid, message.chat.id), "check", callback_data="request_approval_start")]
                 ])
             )
         return
@@ -466,6 +467,24 @@ async def cmd_start(message: Message):
         f'{E["profile"]} {mention_html(message.from_user.full_name, uid)} [<code>{uid}</code>]'
     )
     if uid == OWNER_ID:
+        # Проверяем, установлен ли язык у владельца
+        user_data = get_user(db, uid, 0)
+        if not user_data.get("lang"):
+            kb = InlineKeyboardMarkup(inline_keyboard=[
+                [
+                    InlineKeyboardButton(text="🇷🇺 Русский", callback_data="set_initial_lang_ru"),
+                    InlineKeyboardButton(text="🇬🇧 English", callback_data="set_initial_lang_en"),
+                ]
+            ])
+            await message.answer(
+                f'{E["crown"]} <b>Привет, Владелец!</b>\n\n'
+                f'Пожалуйста, выбери основной язык бота.\n'
+                f'Этот язык будет использоваться по умолчанию во всех группах.',
+                reply_markup=kb,
+                parse_mode=ParseMode.HTML
+            )
+            return
+
         groups = db.get("groups", {})
         total_groups = len(groups)
         total_users = len(db.get("users", {}))
@@ -482,28 +501,29 @@ async def cmd_start(message: Message):
             [btn("Глобальные баны", "cross", callback_data="owner_gbans"),
              btn("Одобрения", "check", callback_data="owner_approvals")],
             [btn("Рассылка", "mega", callback_data="owner_broadcast")],
+            [btn("Сменить язык бота", "earth", callback_data="request_lang_change")]
         ])
         await message.answer(text, parse_mode=ParseMode.HTML, reply_markup=kb)
     else:
         approved = uid in db.get("approved_owners", [])
-        name = message.from_user.first_name or tr("user", uid)
+        name = message.from_user.first_name or tr("user", uid, message.chat.id)
         warned = db.get("warned_owners", {})
         warn_count = warned.get(str(uid), 0)
         if approved:
-            access_line = f'{E["check"]} <b>{tr("start_approved", uid)}</b>'
+            access_line = f'{E["check"]} <b>{tr("start_approved", uid, message.chat.id)}</b>'
         elif warn_count >= 3:
-            access_line = f'{E["cross"]} <b>{tr("start_blocked", uid)}</b>'
+            access_line = f'{E["cross"]} <b>{tr("start_blocked", uid, message.chat.id)}</b>'
         else:
-            access_line = f'{E["warn"]} <b>{tr("start_not_approved", uid)}</b>'
+            access_line = f'{E["warn"]} <b>{tr("start_not_approved", uid, message.chat.id)}</b>'
         text = (
             f'{E["bot"]} <b>{tr("start_hello", uid, name=name)}</b>\n\n'
-            f'{E["profile"]} {tr("start_user_label", uid)}: <b>{name}</b> [<code>{uid}</code>]\n'
-            f'{E["shield"]} {tr("start_access_label", uid)}: {access_line}\n\n'
-            f'{E["info"]} {tr("start_add_info", uid)}'
+            f'{E["profile"]} {tr("start_user_label", uid, message.chat.id)}: <b>{name}</b> [<code>{uid}</code>]\n'
+            f'{E["shield"]} {tr("start_access_label", uid, message.chat.id)}: {access_line}\n\n'
+            f'{E["info"]} {tr("start_add_info", uid, message.chat.id)}'
         )
-        buttons = [[InlineKeyboardButton(text=tr("start_help_btn", uid), icon_custom_emoji_id="5242205011529719330", callback_data="help_main")]]
+        buttons = [[InlineKeyboardButton(text=tr("start_help_btn", uid, message.chat.id), icon_custom_emoji_id="5242205011529719330", callback_data="help_main")]]
         if not approved and warn_count < 3:
-            buttons.append([InlineKeyboardButton(text=tr("start_request_btn", uid), icon_custom_emoji_id="5278411813468269386", callback_data="request_approval_start")])
+            buttons.append([InlineKeyboardButton(text=tr("start_request_btn", uid, message.chat.id), icon_custom_emoji_id="5278411813468269386", callback_data="request_approval_start")])
         kb = InlineKeyboardMarkup(inline_keyboard=buttons)
         await message.answer(text, parse_mode=ParseMode.HTML, reply_markup=kb)
 
@@ -519,14 +539,14 @@ async def _cb_guard(call: CallbackQuery) -> bool:
         # Redis-лимит: кулдаун в личке
         allowed = await check_pm_cooldown(uid)
         if not allowed:
-            await call.answer(tr("not_fast", uid), show_alert=False)
+            await call.answer(tr("not_fast", uid, message.chat.id), show_alert=False)
             return False
     else:
         # Redis-лимит: кулдаун в группе
         chat_id = call.message.chat.id
         allowed = await check_group_cb_cooldown(chat_id, uid)
         if not allowed:
-            await call.answer(tr("not_fast", uid), show_alert=False)
+            await call.answer(tr("not_fast", uid, message.chat.id), show_alert=False)
             return False
     return True
 
@@ -538,30 +558,30 @@ async def request_approval_start_cb(call: CallbackQuery):
     db = load_db()
     uid = call.from_user.id
     if uid in db.get("approved_owners", []):
-        await call.answer(tr("approval_already_approved", uid), show_alert=True)
+        await call.answer(tr("approval_already_approved", uid, message.chat.id), show_alert=True)
         return
     warned = db.get("warned_owners", {})
     if str(uid) in warned and warned[str(uid)] >= 3:
-        await call.answer(tr("approval_blocked", uid), show_alert=True)
+        await call.answer(tr("approval_blocked", uid, message.chat.id), show_alert=True)
         return
     pending = db.get("pending_approval", [])
     already_pending = uid in pending
     if already_pending:
         text = (
-            f'{E["clock"]} <b>{tr("approval_pending_title", uid)}</b>\n\n'
+            f'{E["clock"]} <b>{tr("approval_pending_title", uid, message.chat.id)}</b>\n\n'
             f'{tr("approval_pending_text", uid, owner=OWNER_USERNAME)}'
         )
     else:
         text = (
-            f'{E["bell"]} <b>{tr("approval_request_title", uid)}</b>\n\n'
-            f'{E["profile"]} {tr("approval_account_label", uid)}: <b>{call.from_user.full_name}</b>\n'
-            f'{E["info"]} {tr("approval_id_label", uid)}: <code>{uid}</code>\n\n'
-            f'{tr("approval_request_info", uid)}'
+            f'{E["bell"]} <b>{tr("approval_request_title", uid, message.chat.id)}</b>\n\n'
+            f'{E["profile"]} {tr("approval_account_label", uid, message.chat.id)}: <b>{call.from_user.full_name}</b>\n'
+            f'{E["info"]} {tr("approval_id_label", uid, message.chat.id)}: <code>{uid}</code>\n\n'
+            f'{tr("approval_request_info", uid, message.chat.id)}'
         )
     kb_rows = []
     if not already_pending:
-        kb_rows.append([InlineKeyboardButton(text=tr("approval_send_btn", uid), icon_custom_emoji_id="5278411813468269386", callback_data="request_approval_confirm")])
-    kb_rows.append([InlineKeyboardButton(text=tr("back", uid), icon_custom_emoji_id="5206401524200145033", callback_data="back_to_start")])
+        kb_rows.append([InlineKeyboardButton(text=tr("approval_send_btn", uid, message.chat.id), icon_custom_emoji_id="5278411813468269386", callback_data="request_approval_confirm")])
+    kb_rows.append([InlineKeyboardButton(text=tr("back", uid, message.chat.id), icon_custom_emoji_id="5206401524200145033", callback_data="back_to_start")])
     await call.message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(inline_keyboard=kb_rows))
     await call.answer()
 
@@ -597,11 +617,11 @@ async def request_approval_confirm_cb(call: CallbackQuery):
     except:
         pass
     await call.message.edit_text(
-        f'{E["check"]} <b>{tr("approval_sent_title", uid)}</b>\n\n'
+        f'{E["check"]} <b>{tr("approval_sent_title", uid, message.chat.id)}</b>\n\n'
         f'{tr("approval_sent_text", uid, owner=OWNER_USERNAME)}',
         parse_mode=ParseMode.HTML,
         reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text=tr("back", uid), icon_custom_emoji_id="5206401524200145033", callback_data="back_to_start")]
+            [InlineKeyboardButton(text=tr("back", uid, message.chat.id), icon_custom_emoji_id="5206401524200145033", callback_data="back_to_start")]
         ])
     )
     await call.answer()
@@ -616,31 +636,31 @@ async def back_to_start_cb(call: CallbackQuery):
     db = load_db()
     uid = call.from_user.id
     approved = uid in db.get("approved_owners", [])
-    name = call.from_user.first_name or tr("user", uid)
+    name = call.from_user.first_name or tr("user", uid, message.chat.id)
     warned = db.get("warned_owners", {})
     warn_count = warned.get(str(uid), 0)
     if approved:
-        access_line = f'{E["check"]} <b>{tr("start_approved", uid)}</b>'
+        access_line = f'{E["check"]} <b>{tr("start_approved", uid, message.chat.id)}</b>'
     elif warn_count >= 3:
-        access_line = f'{E["cross"]} <b>{tr("start_blocked", uid)}</b>'
+        access_line = f'{E["cross"]} <b>{tr("start_blocked", uid, message.chat.id)}</b>'
     else:
-        access_line = f'{E["warn"]} <b>{tr("start_not_approved", uid)}</b>'
+        access_line = f'{E["warn"]} <b>{tr("start_not_approved", uid, message.chat.id)}</b>'
     text = (
         f'{E["bot"]} <b>{tr("start_hello", uid, name=name)}</b>\n\n'
-        f'{E["profile"]} {tr("start_user_label", uid)}: <b>{name}</b> [<code>{uid}</code>]\n'
-        f'{E["shield"]} {tr("start_access_label", uid)}: {access_line}\n\n'
-        f'{E["info"]} {tr("start_add_info", uid)}'
+        f'{E["profile"]} {tr("start_user_label", uid, message.chat.id)}: <b>{name}</b> [<code>{uid}</code>]\n'
+        f'{E["shield"]} {tr("start_access_label", uid, message.chat.id)}: {access_line}\n\n'
+        f'{E["info"]} {tr("start_add_info", uid, message.chat.id)}'
     )
-    buttons = [[InlineKeyboardButton(text=tr("start_help_btn", uid), icon_custom_emoji_id="5242205011529719330", callback_data="help_main")]]
+    buttons = [[InlineKeyboardButton(text=tr("start_help_btn", uid, message.chat.id), icon_custom_emoji_id="5242205011529719330", callback_data="help_main")]]
     if not approved and warn_count < 3:
-        buttons.append([InlineKeyboardButton(text=tr("start_request_btn", uid), icon_custom_emoji_id="5278411813468269386", callback_data="request_approval_start")])
+        buttons.append([InlineKeyboardButton(text=tr("start_request_btn", uid, message.chat.id), icon_custom_emoji_id="5278411813468269386", callback_data="request_approval_start")])
     await call.message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons))
     await call.answer()
 
 @router.callback_query(F.data.startswith("approve_"))
 async def approve_owner_cb(call: CallbackQuery):
     if call.from_user.id != OWNER_ID:
-        await call.answer(tr("no_access", call.from_user.id), show_alert=True)
+        await call.answer(tr("no_access", call.from_user.id, call.message.chat.id), show_alert=True)
         return
     uid = int(call.data.split("_")[1])
     db = load_db()
@@ -652,7 +672,7 @@ async def approve_owner_cb(call: CallbackQuery):
     try:
         await call.bot.send_message(
             uid,
-            f'{E["check"]} <b>{tr("approval_approved_msg", uid)}</b>',
+            f'{E["check"]} <b>{tr("approval_approved_msg", uid, message.chat.id)}</b>',
             parse_mode=ParseMode.HTML
         )
     except:
@@ -666,7 +686,7 @@ async def approve_owner_cb(call: CallbackQuery):
 @router.callback_query(F.data.startswith("reject_"))
 async def reject_owner_cb(call: CallbackQuery):
     if call.from_user.id != OWNER_ID:
-        await call.answer(tr("no_access", call.from_user.id), show_alert=True)
+        await call.answer(tr("no_access", call.from_user.id, call.message.chat.id), show_alert=True)
         return
     uid = int(call.data.split("_")[1])
     db = load_db()
@@ -679,7 +699,7 @@ async def reject_owner_cb(call: CallbackQuery):
     count = warned[str(uid)]
     try:
         if count >= 3:
-            await call.bot.send_message(uid, f'{E["cross"]} <b>{tr("approval_blocked_msg", uid)}</b>', parse_mode=ParseMode.HTML)
+            await call.bot.send_message(uid, f'{E["cross"]} <b>{tr("approval_blocked_msg", uid, message.chat.id)}</b>', parse_mode=ParseMode.HTML)
         else:
             await call.bot.send_message(uid, f'{E["warn"]} <b>{tr("approval_warn_msg", uid, count=count)}</b>', parse_mode=ParseMode.HTML)
     except:
@@ -764,7 +784,7 @@ async def bot_member_updated(update: ChatMemberUpdated):
         elif g.get("owner_id") is None:
             g["owner_id"] = uid
         save_db(db)
-        name = chat.title or tr("unknown", uid)
+        name = chat.title or tr("unknown", uid, message.chat.id)
         try:
             await update.bot.send_message(
                 chat.id,
@@ -1005,18 +1025,18 @@ async def cmd_help(message: Message):
         return
     uid = message.from_user.id
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=tr("help_punish_btn", uid), icon_custom_emoji_id="5278578973595427038", callback_data="help_punish"),
-         InlineKeyboardButton(text=tr("help_unpunish_btn", uid), icon_custom_emoji_id="5278411813468269386", callback_data="help_unpunish")],
-        [InlineKeyboardButton(text=tr("help_rights_btn", uid), icon_custom_emoji_id="5276262671962892944", callback_data="help_rights"),
-         InlineKeyboardButton(text=tr("help_report_btn", uid), icon_custom_emoji_id="5278589204207528856", callback_data="help_report")],
-        [InlineKeyboardButton(text=tr("help_info_btn", uid), icon_custom_emoji_id="5278753302023004775", callback_data="help_info"),
-         InlineKeyboardButton(text=tr("help_settings_btn", uid), icon_custom_emoji_id="5278602437001767574", callback_data="help_settings")],
-        [InlineKeyboardButton(text=tr("help_censorship_btn", uid), icon_custom_emoji_id="5278578973595427038", callback_data="help_censorship"),
-         InlineKeyboardButton(text=tr("help_rep_btn", uid), icon_custom_emoji_id="5276111746812112286", callback_data="help_rep")],
-        [InlineKeyboardButton(text=tr("help_all_btn", uid), icon_custom_emoji_id="5278753302023004775", callback_data="help_all")],
+        [InlineKeyboardButton(text=tr("help_punish_btn", uid, message.chat.id), icon_custom_emoji_id="5278578973595427038", callback_data="help_punish"),
+         InlineKeyboardButton(text=tr("help_unpunish_btn", uid, message.chat.id), icon_custom_emoji_id="5278411813468269386", callback_data="help_unpunish")],
+        [InlineKeyboardButton(text=tr("help_rights_btn", uid, message.chat.id), icon_custom_emoji_id="5276262671962892944", callback_data="help_rights"),
+         InlineKeyboardButton(text=tr("help_report_btn", uid, message.chat.id), icon_custom_emoji_id="5278589204207528856", callback_data="help_report")],
+        [InlineKeyboardButton(text=tr("help_info_btn", uid, message.chat.id), icon_custom_emoji_id="5278753302023004775", callback_data="help_info"),
+         InlineKeyboardButton(text=tr("help_settings_btn", uid, message.chat.id), icon_custom_emoji_id="5278602437001767574", callback_data="help_settings")],
+        [InlineKeyboardButton(text=tr("help_censorship_btn", uid, message.chat.id), icon_custom_emoji_id="5278578973595427038", callback_data="help_censorship"),
+         InlineKeyboardButton(text=tr("help_rep_btn", uid, message.chat.id), icon_custom_emoji_id="5276111746812112286", callback_data="help_rep")],
+        [InlineKeyboardButton(text=tr("help_all_btn", uid, message.chat.id), icon_custom_emoji_id="5278753302023004775", callback_data="help_all")],
     ])
     await message.reply(
-        f'{E["bot"]} <b>{tr("help_menu_title", uid)}</b>\n{tr("help_menu_choose", uid)}',
+        f'{E["bot"]} <b>{tr("help_menu_title", uid, message.chat.id)}</b>\n{tr("help_menu_choose", uid, message.chat.id)}',
         parse_mode=ParseMode.HTML,
         reply_markup=kb
     )
@@ -1025,18 +1045,18 @@ async def cmd_help(message: Message):
 async def help_main_cb(call: CallbackQuery):
     uid = call.from_user.id
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=tr("help_punish_btn", uid), icon_custom_emoji_id="5278578973595427038", callback_data="help_punish"),
-         InlineKeyboardButton(text=tr("help_unpunish_btn", uid), icon_custom_emoji_id="5278411813468269386", callback_data="help_unpunish")],
-        [InlineKeyboardButton(text=tr("help_rights_btn", uid), icon_custom_emoji_id="5276262671962892944", callback_data="help_rights"),
-         InlineKeyboardButton(text=tr("help_report_btn", uid), icon_custom_emoji_id="5278589204207528856", callback_data="help_report")],
-        [InlineKeyboardButton(text=tr("help_info_btn", uid), icon_custom_emoji_id="5278753302023004775", callback_data="help_info"),
-         InlineKeyboardButton(text=tr("help_settings_btn", uid), icon_custom_emoji_id="5278602437001767574", callback_data="help_settings")],
-        [InlineKeyboardButton(text=tr("help_censorship_btn", uid), icon_custom_emoji_id="5278578973595427038", callback_data="help_censorship"),
-         InlineKeyboardButton(text=tr("help_rep_btn", uid), icon_custom_emoji_id="5276111746812112286", callback_data="help_rep")],
-        [InlineKeyboardButton(text=tr("help_all_btn", uid), icon_custom_emoji_id="5278753302023004775", callback_data="help_all")],
+        [InlineKeyboardButton(text=tr("help_punish_btn", uid, message.chat.id), icon_custom_emoji_id="5278578973595427038", callback_data="help_punish"),
+         InlineKeyboardButton(text=tr("help_unpunish_btn", uid, message.chat.id), icon_custom_emoji_id="5278411813468269386", callback_data="help_unpunish")],
+        [InlineKeyboardButton(text=tr("help_rights_btn", uid, message.chat.id), icon_custom_emoji_id="5276262671962892944", callback_data="help_rights"),
+         InlineKeyboardButton(text=tr("help_report_btn", uid, message.chat.id), icon_custom_emoji_id="5278589204207528856", callback_data="help_report")],
+        [InlineKeyboardButton(text=tr("help_info_btn", uid, message.chat.id), icon_custom_emoji_id="5278753302023004775", callback_data="help_info"),
+         InlineKeyboardButton(text=tr("help_settings_btn", uid, message.chat.id), icon_custom_emoji_id="5278602437001767574", callback_data="help_settings")],
+        [InlineKeyboardButton(text=tr("help_censorship_btn", uid, message.chat.id), icon_custom_emoji_id="5278578973595427038", callback_data="help_censorship"),
+         InlineKeyboardButton(text=tr("help_rep_btn", uid, message.chat.id), icon_custom_emoji_id="5276111746812112286", callback_data="help_rep")],
+        [InlineKeyboardButton(text=tr("help_all_btn", uid, message.chat.id), icon_custom_emoji_id="5278753302023004775", callback_data="help_all")],
     ])
     await call.message.edit_text(
-        f'{E["bot"]} <b>{tr("help_menu_title", uid)}</b>\n{tr("help_menu_choose", uid)}',
+        f'{E["bot"]} <b>{tr("help_menu_title", uid, message.chat.id)}</b>\n{tr("help_menu_choose", uid, message.chat.id)}',
         parse_mode=ParseMode.HTML,
         reply_markup=kb
     )
@@ -1108,11 +1128,11 @@ async def help_all_cb(call: CallbackQuery):
 async def help_punish_cb(call: CallbackQuery):
     uid = call.from_user.id
     text = (
-        f'{E["warn"]} <b>{tr("help_punish_title", uid)}</b>\n\n'
-        f'{tr("help_punish_text", uid)}'
+        f'{E["warn"]} <b>{tr("help_punish_title", uid, message.chat.id)}</b>\n\n'
+        f'{tr("help_punish_text", uid, message.chat.id)}'
     )
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=tr("back", uid), icon_custom_emoji_id="5206401524200145033", callback_data="help_main")]
+        [InlineKeyboardButton(text=tr("back", uid, message.chat.id), icon_custom_emoji_id="5206401524200145033", callback_data="help_main")]
     ])
     await call.message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
 
@@ -1120,11 +1140,11 @@ async def help_punish_cb(call: CallbackQuery):
 async def help_censorship_cb(call: CallbackQuery):
     uid = call.from_user.id
     text = (
-        f'{E["shield"]} <b>{tr("help_censorship_title", uid)}</b>\n\n'
-        f'{tr("help_censorship_text", uid)}'
+        f'{E["shield"]} <b>{tr("help_censorship_title", uid, message.chat.id)}</b>\n\n'
+        f'{tr("help_censorship_text", uid, message.chat.id)}'
     )
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=tr("back", uid), icon_custom_emoji_id="5206401524200145033", callback_data="help_main")]
+        [InlineKeyboardButton(text=tr("back", uid, message.chat.id), icon_custom_emoji_id="5206401524200145033", callback_data="help_main")]
     ])
     await call.message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
 
@@ -1132,11 +1152,11 @@ async def help_censorship_cb(call: CallbackQuery):
 async def help_rep_cb(call: CallbackQuery):
     uid = call.from_user.id
     text = (
-        f'{E["star"]} <b>{tr("help_rep_title", uid)}</b>\n\n'
-        f'{tr("help_rep_text", uid)}'
+        f'{E["star"]} <b>{tr("help_rep_title", uid, message.chat.id)}</b>\n\n'
+        f'{tr("help_rep_text", uid, message.chat.id)}'
     )
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=tr("back", uid), icon_custom_emoji_id="5206401524200145033", callback_data="help_main")]
+        [InlineKeyboardButton(text=tr("back", uid, message.chat.id), icon_custom_emoji_id="5206401524200145033", callback_data="help_main")]
     ])
     await call.message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
 
@@ -1144,11 +1164,11 @@ async def help_rep_cb(call: CallbackQuery):
 async def help_unpunish_cb(call: CallbackQuery):
     uid = call.from_user.id
     text = (
-        f'{E["check"]} <b>{tr("help_unpunish_title", uid)}</b>\n\n'
-        f'{tr("help_unpunish_text", uid)}'
+        f'{E["check"]} <b>{tr("help_unpunish_title", uid, message.chat.id)}</b>\n\n'
+        f'{tr("help_unpunish_text", uid, message.chat.id)}'
     )
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=tr("back", uid), icon_custom_emoji_id="5206401524200145033", callback_data="help_main")]
+        [InlineKeyboardButton(text=tr("back", uid, message.chat.id), icon_custom_emoji_id="5206401524200145033", callback_data="help_main")]
     ])
     await call.message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
 
@@ -1156,11 +1176,11 @@ async def help_unpunish_cb(call: CallbackQuery):
 async def help_report_cb(call: CallbackQuery):
     uid = call.from_user.id
     text = (
-        f'{E["bell"]} <b>{tr("help_report_title", uid)}</b>\n\n'
-        f'{tr("help_report_text", uid)}'
+        f'{E["bell"]} <b>{tr("help_report_title", uid, message.chat.id)}</b>\n\n'
+        f'{tr("help_report_text", uid, message.chat.id)}'
     )
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=tr("back", uid), icon_custom_emoji_id="5206401524200145033", callback_data="help_main")]
+        [InlineKeyboardButton(text=tr("back", uid, message.chat.id), icon_custom_emoji_id="5206401524200145033", callback_data="help_main")]
     ])
     await call.message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
 
@@ -1168,11 +1188,11 @@ async def help_report_cb(call: CallbackQuery):
 async def help_info_cb(call: CallbackQuery):
     uid = call.from_user.id
     text = (
-        f'{E["info"]} <b>{tr("help_info_title", uid)}</b>\n\n'
-        f'{tr("help_info_text", uid)}'
+        f'{E["info"]} <b>{tr("help_info_title", uid, message.chat.id)}</b>\n\n'
+        f'{tr("help_info_text", uid, message.chat.id)}'
     )
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=tr("back", uid), icon_custom_emoji_id="5206401524200145033", callback_data="help_main")]
+        [InlineKeyboardButton(text=tr("back", uid, message.chat.id), icon_custom_emoji_id="5206401524200145033", callback_data="help_main")]
     ])
     await call.message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
 
@@ -1180,11 +1200,11 @@ async def help_info_cb(call: CallbackQuery):
 async def help_settings_cb(call: CallbackQuery):
     uid = call.from_user.id
     text = (
-        f'{E["settings"]} <b>{tr("help_settings_title", uid)}</b>\n\n'
-        f'{tr("help_settings_text", uid)}'
+        f'{E["settings"]} <b>{tr("help_settings_title", uid, message.chat.id)}</b>\n\n'
+        f'{tr("help_settings_text", uid, message.chat.id)}'
     )
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=tr("back", uid), icon_custom_emoji_id="5206401524200145033", callback_data="help_main")]
+        [InlineKeyboardButton(text=tr("back", uid, message.chat.id), icon_custom_emoji_id="5206401524200145033", callback_data="help_main")]
     ])
     await call.message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
 
@@ -1192,11 +1212,11 @@ async def help_settings_cb(call: CallbackQuery):
 async def help_rights_cb(call: CallbackQuery):
     uid = call.from_user.id
     text = (
-        f'{E["shield"]} <b>{tr("help_rights_title", uid)}</b>\n\n'
-        f'{tr("help_rights_text", uid)}'
+        f'{E["shield"]} <b>{tr("help_rights_title", uid, message.chat.id)}</b>\n\n'
+        f'{tr("help_rights_text", uid, message.chat.id)}'
     )
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=tr("back", uid), icon_custom_emoji_id="5206401524200145033", callback_data="help_main")]
+        [InlineKeyboardButton(text=tr("back", uid, message.chat.id), icon_custom_emoji_id="5206401524200145033", callback_data="help_main")]
     ])
     await call.message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=kb)
 
@@ -1207,11 +1227,11 @@ async def cmd_rules(message: Message):
     db = load_db()
     group = get_group(db, message.chat.id)
     uid = message.from_user.id
-    rules = group.get("rules", tr("rules_not_set", uid))
+    rules = group.get("rules", tr("rules_not_set", uid, message.chat.id))
     await message.reply(
-        f'{E["book"]} <b>{tr("rules_title", uid)}</b>\n\n'
-        f'<blockquote>{rules}\n\n{tr("rules_punishments", uid)}</blockquote>\n\n'
-        f'{E["link"]} {tr("channel_label", uid)}: {CHANNEL}',
+        f'{E["book"]} <b>{tr("rules_title", uid, message.chat.id)}</b>\n\n'
+        f'<blockquote>{rules}\n\n{tr("rules_punishments", uid, message.chat.id)}</blockquote>\n\n'
+        f'{E["link"]} {tr("channel_label", uid, message.chat.id)}: {CHANNEL}',
         parse_mode=ParseMode.HTML
     )
 

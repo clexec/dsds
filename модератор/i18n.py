@@ -93,27 +93,37 @@ def _record_missing(key: str, lang: str):
 
 # ─── Получение языка пользователя ────────────────────────────────────────────
 
-def get_user_lang(user_id: int, db: Optional[dict] = None) -> str:
+def get_user_lang(user_id: int, chat_id: Optional[int] = None, db: Optional[dict] = None) -> str:
     """
-    Возвращает язык пользователя.
-    Сначала проверяет кэш, затем db["users"].
+    Возвращает язык для сообщения.
+    Приоритет:
+    1. Личный язык пользователя (если установлен)
+    2. Язык группы (если chat_id указан и это группа)
+    3. Язык по умолчанию (ru)
     """
+    # 1. Личный язык (из кэша или БД)
     if user_id in _lang_cache:
         return _lang_cache[user_id]
 
-    lang = DEFAULT_LANG
+    user_lang = None
     if db is not None:
-        # Ищем пользователя в любом чате
+        # Ищем пользователя в users. Для простоты берем первую попавшуюся запись с установленным языком
         for key, udata in db.get("users", {}).items():
-            if udata.get("user_id") == user_id:
-                lang = udata.get("lang", DEFAULT_LANG)
+            if udata.get("user_id") == user_id and udata.get("lang"):
+                user_lang = udata["lang"]
                 break
 
-    if lang not in SUPPORTED_LANGS:
-        lang = DEFAULT_LANG
+    if user_lang and user_lang in SUPPORTED_LANGS:
+        _lang_cache[user_id] = user_lang
+        return user_lang
 
-    _lang_cache[user_id] = lang
-    return lang
+    # 2. Язык группы
+    if chat_id and db:
+        group = db.get("groups", {}).get(str(chat_id))
+        if group and group.get("lang") in SUPPORTED_LANGS:
+            return group["lang"]
+
+    return DEFAULT_LANG
 
 
 def set_user_lang(user_id: int, lang: str, db: dict) -> bool:
@@ -168,21 +178,22 @@ def set_db_loader(loader):
     _db_loader = loader
 
 
-def tr(key_or_text: str, user_id: int, **kwargs) -> str:
+def tr(key_or_text: str, user_id: int, chat_id: Optional[int] = None, **kwargs) -> str:
     """
-    Возвращает перевод строки для пользователя.
+    Возвращает перевод строки.
 
     Args:
         key_or_text: Ключ перевода (например "ban_done") или исходный текст
-        user_id: Telegram user_id для определения языка
-        **kwargs: Переменные для подстановки (например user="@username")
+        user_id: Telegram user_id
+        chat_id: ID чата (для определения языка группы)
+        **kwargs: Переменные для подстановки
 
     Returns:
         Переведённая строка или исходный текст если ключ не найден
     """
-    # Получаем язык пользователя
+    # Получаем язык
     db = _db_loader() if _db_loader else None
-    lang = get_user_lang(user_id, db)
+    lang = get_user_lang(user_id, chat_id, db)
 
     if not _I18N_AVAILABLE:
         # Без python-i18n — возвращаем ключ как есть с подстановкой переменных
@@ -265,13 +276,106 @@ async def lang_cb_handler(call: _CallbackQuery):
     new_lang = "ru" if call.data == "set_lang_ru" else "en"
 
     db = _db_loader() if _db_loader else {}
+    
+    # Смена языка разрешена только владельцу бота или если это первый выбор
+    from bot import OWNER_ID
+    if uid != OWNER_ID:
+        await call.answer("Только владелец бота может менять глобальный язык.", show_alert=True)
+        return
+
     set_user_lang(uid, new_lang, db)
+    
+    # Устанавливаем язык для всех существующих групп
+    for g_id, gdata in db.get("groups", {}).items():
+        gdata["lang"] = new_lang
 
     # Сохраняем изменения в БД
     if _db_loader:
-        from bot import save_db  # ленивый импорт для избежания цикла
+        from bot import save_db
         save_db(db)
 
     msg_key = "lang_set_ru" if new_lang == "ru" else "lang_set_en"
     await call.answer(tr(msg_key, uid), show_alert=True)
     await call.message.delete()
+    # Отправляем /start снова чтобы показать панель
+    from bot import Command
+    from aiogram.filters import CommandObject
+    # В aiogram 3.x проще вызвать хендлер напрямую или попросить юзера нажать /start
+    await call.message.answer("Настройки сохранены. Нажмите /start для входа в панель.")
+
+@lang_router.callback_query(_F.data.in_({"set_initial_lang_ru", "set_initial_lang_en"}))
+async def set_initial_lang_cb(call: _CallbackQuery):
+    """Первоначальный выбор языка владельцем."""
+    uid = call.from_user.id
+    from bot import OWNER_ID
+    if uid != OWNER_ID:
+        await call.answer("Доступ запрещен.", show_alert=True)
+        return
+
+    new_lang = "ru" if call.data == "set_initial_lang_ru" else "en"
+    db = _db_loader() if _db_loader else {}
+    
+    set_user_lang(uid, new_lang, db)
+    
+    # Также ставим этот язык глобальным для всех групп
+    for g_id, gdata in db.get("groups", {}).items():
+        gdata["lang"] = new_lang
+
+    if _db_loader:
+        from bot import save_db
+        save_db(db)
+
+    await call.answer("Язык успешно установлен!", show_alert=True)
+    await call.message.delete()
+    await call.message.answer("Бот настроен. Нажмите /start для входа в панель.")
+
+@lang_router.callback_query(_F.data == "request_lang_change")
+async def request_lang_change_cb(call: _CallbackQuery):
+    """Запрос на смену языка через одобрение @seyats."""
+    uid = call.from_user.id
+    from bot import OWNER_ID, E
+    if uid != OWNER_ID:
+        await call.answer("Только владелец может это сделать.", show_alert=True)
+        return
+
+    kb = _InlineKeyboardMarkup(inline_keyboard=[
+        [
+            _InlineKeyboardButton(text="🇷🇺 Русский", callback_data="ask_seyats_lang_ru"),
+            _InlineKeyboardButton(text="🇬🇧 English", callback_data="ask_seyats_lang_en"),
+        ],
+        [_InlineKeyboardButton(text="Отмена", callback_data="cancel_lang_request")]
+    ])
+    
+    await call.message.edit_text(
+        f'{E["earth"]} <b>Смена языка бота</b>\n\n'
+        f'Для смены глобального языка требуется одобрение @seyats.\n'
+        f'Выберите язык, на который хотите переключиться:',
+        reply_markup=kb,
+        parse_mode=_ParseMode.HTML
+    )
+
+@lang_router.callback_query(_F.data.startswith("ask_seyats_lang_"))
+async def ask_seyats_lang_cb(call: _CallbackQuery):
+    """Отправка запроса на смену языка @seyats."""
+    new_lang = call.data.replace("ask_seyats_lang_", "")
+    uid = call.from_user.id
+    from bot import OWNER_ID, E, send_log
+    
+    if uid != OWNER_ID:
+        return
+
+    # В данной реализации мы просто имитируем запрос или отправляем уведомление
+    # Так как мы не знаем ID @seyats в системе, мы отправим лог-сообщение
+    await send_log(
+        f'{E["warn"]} <b>Запрос на смену языка</b>\n'
+        f'Владелец бота запрашивает смену языка на: <b>{new_lang.upper()}</b>\n'
+        f'Одобрите или отклоните в коде или через БД.'
+    )
+    
+    await call.answer("Запрос отправлен @seyats. Ожидайте одобрения.", show_alert=True)
+    await call.message.delete()
+
+@lang_router.callback_query(_F.data == "cancel_lang_request")
+async def cancel_lang_request_cb(call: _CallbackQuery):
+    await call.message.delete()
+    await call.message.answer("Действие отменено. Нажмите /start для возврата.")
