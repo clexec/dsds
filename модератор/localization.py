@@ -246,3 +246,7 @@ async def reject_lang_change_cb(call: CallbackQuery):
 async def cancel_lang_request_cb(call: CallbackQuery):
     await call.message.delete()
     await call.message.answer("Отменено. Нажмите /start")
+
+def invalidate_lang_cache(user_id: int):
+    """Инвалидирует кэш языка для пользователя."""
+    _lang_cache.pop(user_id, None)
