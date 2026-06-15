@@ -53,65 +53,129 @@ GROUP_CB_COOLDOWN_SEC = 2.0
 _link_tracker: dict[int, dict[int, int]] = {}
 
 
-E = {
-    "settings":     '<tg-emoji emoji-id="5278602437001767574">⚙</tg-emoji>',
-    "profile":      '<tg-emoji emoji-id="5275979556308674886">👤</tg-emoji>',
-    "people":       '<tg-emoji emoji-id="5298668674532538341">👥</tg-emoji>',
-    "check":        '<tg-emoji emoji-id="5278411813468269386">✅</tg-emoji>',
-    "cross":        '<tg-emoji emoji-id="5278578973595427038">❌</tg-emoji>',
-    "pencil":       '<tg-emoji emoji-id="5276442772826515132">✍</tg-emoji>',
-    "trash":        '<tg-emoji emoji-id="5276384644739129761">🗑</tg-emoji>',
-    "link":         '<tg-emoji emoji-id="5278305362703835500">🔗</tg-emoji>',
-    "info":         '<tg-emoji emoji-id="5278753302023004775">ℹ</tg-emoji>',
-    "bot":          '<tg-emoji emoji-id="5276127848644503161">🤖</tg-emoji>',
-    "eye":          '<tg-emoji emoji-id="5276395476646653290">👁</tg-emoji>',
-    "bell":         '<tg-emoji emoji-id="5206222720416643915">🔔</tg-emoji>',
-    "gift":         '<tg-emoji emoji-id="5276422526350681413">🎁</tg-emoji>',
-    "clock":        '<tg-emoji emoji-id="5276412364458059956">⏰</tg-emoji>',
-    "party":        '<tg-emoji emoji-id="5278611606756942667">🎉</tg-emoji>',
-    "star":         '<tg-emoji emoji-id="5276111746812112286">⭐</tg-emoji>',
-    "shield":       '<tg-emoji emoji-id="5276262671962892944">🛡</tg-emoji>',
-    "warn":         '<tg-emoji emoji-id="5276240711795107620">⚠</tg-emoji>',
-    "pc":           '<tg-emoji emoji-id="5278647306525108244">🖥</tg-emoji>',
-    "crown":        '<tg-emoji emoji-id="5276229330131772747">👑</tg-emoji>',
-    "back":         '<tg-emoji emoji-id="5206401524200145033">◁</tg-emoji>',
-    "chart":        '<tg-emoji emoji-id="5278778882848220741">📊</tg-emoji>',
-    "lock":         '<tg-emoji emoji-id="5278602437001767574">🔒</tg-emoji>',
-    "unlock":       '<tg-emoji emoji-id="5278602437001767574">🔓</tg-emoji>',
-    "mega":         '<tg-emoji emoji-id="5278528159837348960">📣</tg-emoji>',
-    "box":          '<tg-emoji emoji-id="5278540791336165644">📦</tg-emoji>',
-    "reload":       '<tg-emoji emoji-id="5278611606756942667">🔄</tg-emoji>',
-    "home":         '<tg-emoji emoji-id="5278413853577734640">🏘</tg-emoji>',
-    "smile":        '<tg-emoji emoji-id="5278611606756942667">🙂</tg-emoji>',
-    "book":         '<tg-emoji emoji-id="5206626000665868017">📚</tg-emoji>',
-    "code":         '<tg-emoji emoji-id="5276314275994954605">🔨</tg-emoji>',
-    "money":        '<tg-emoji emoji-id="5193179982775476271">🪙</tg-emoji>',
-    "send":         '<tg-emoji emoji-id="5206401524200145033">⬆</tg-emoji>',
-    "down":         '<tg-emoji emoji-id="5206510891247371052">⬇</tg-emoji>',
-    "plus":         '<tg-emoji emoji-id="5242329690135356589">➕</tg-emoji>',
-    "minus":        '<tg-emoji emoji-id="5244796895443838315">➖</tg-emoji>',
-    "excl":         '<tg-emoji emoji-id="5242578970037218790">❕</tg-emoji>',
-    "question":     '<tg-emoji emoji-id="5242205011529719330">❔</tg-emoji>',
-    "brush":        '<tg-emoji emoji-id="5276442772826515132">🖌</tg-emoji>',
-    "bag":          '<tg-emoji emoji-id="5276037216244624892">💼</tg-emoji>',
-    "compass":      '<tg-emoji emoji-id="5206202791768393003">🧭</tg-emoji>',
-    "gamepad":      '<tg-emoji emoji-id="5278304890257436355">🎮</tg-emoji>',
-    "letter":       '<tg-emoji emoji-id="5278589204207528856">📨</tg-emoji>',
-    "photo":        '<tg-emoji emoji-id="5278647306525108244">🖼</tg-emoji>',
-    "pin":          '<tg-emoji emoji-id="5278305362703835500">📍</tg-emoji>',
-    "wallet":       '<tg-emoji emoji-id="5276398496008663230">👛</tg-emoji>',
-    "tag":          '<tg-emoji emoji-id="5276422526350681413">🏷</tg-emoji>',
-    "heart":        '<tg-emoji emoji-id="5278611606756942667">❤</tg-emoji>',
+E_IDS = {
+    "settings":     "5278602437001767574",
+    "profile":      "5275979556308674886",
+    "people":       "5298668674532538341",
+    "check":        "5278411813468269386",
+    "cross":        "5278578973595427038",
+    "pencil":       "5276442772826515132",
+    "trash":        "5276384644739129761",
+    "link":         "5278305362703835500",
+    "info":         "5278753302023004775",
+    "bot":          "5276127848644503161",
+    "eye":          "5276395476646653290",
+    "bell":         "5206222720416643915",
+    "gift":         "5276422526350681413",
+    "clock":        "5276412364458059956",
+    "party":        "5278611606756942667",
+    "star":         "5276111746812112286",
+    "shield":       "5276262671962892944",
+    "warn":         "5276240711795107620",
+    "pc":           "5278647306525108244",
+    "crown":        "5276229330131772747",
+    "back":         "5206401524200145033",
+    "chart":        "5278778882848220741",
+    "lock":         "5278602437001767574",
+    "unlock":       "5278602437001767574",
+    "mega":         "5278528159837348960",
+    "box":          "5278540791336165644",
+    "reload":       "5278611606756942667",
+    "home":         "5278413853577734640",
+    "smile":        "5278611606756942667",
+    "book":         "5206626000665868017",
+    "code":         "5276314275994954605",
+    "money":        "5193179982775476271",
+    "send":         "5206401524200145033",
+    "down":         "5206510891247371052",
+    "plus":         "5242329690135356589",
+    "minus":        "5244796895443838315",
+    "excl":         "5242578970037218790",
+    "question":     "5242205011529719330",
+    "brush":        "5276442772826515132",
+    "bag":          "5276037216244624892",
+    "compass":      "5206202791768393003",
+    "gamepad":      "5278304890257436355",
+    "letter":       "5278589204207528856",
+    "photo":        "5278647306525108244",
+    "pin":          "5278305362703835500",
+    "wallet":       "5276398496008663230",
+    "tag":          "5276422526350681413",
+    "heart":        "5278611606756942667",
 }
+
+E = {k: f'<tg-emoji emoji-id="{v}">_</tg-emoji>'.replace('_', '') for k, v in E_IDS.items()}
+# Специальные замены для тех, где был текст внутри (хотя в коде в основном были просто символы)
+E["settings"] = f'<tg-emoji emoji-id="{E_IDS["settings"]}">⚙</tg-emoji>'
+E["profile"]  = f'<tg-emoji emoji-id="{E_IDS["profile"]}">👤</tg-emoji>'
+E["people"]   = f'<tg-emoji emoji-id="{E_IDS["people"]}">👥</tg-emoji>'
+E["check"]    = f'<tg-emoji emoji-id="{E_IDS["check"]}">✅</tg-emoji>'
+E["cross"]    = f'<tg-emoji emoji-id="{E_IDS["cross"]}">❌</tg-emoji>'
+E["pencil"]   = f'<tg-emoji emoji-id="{E_IDS["pencil"]}">✍</tg-emoji>'
+E["trash"]    = f'<tg-emoji emoji-id="{E_IDS["trash"]}">🗑</tg-emoji>'
+E["link"]     = f'<tg-emoji emoji-id="{E_IDS["link"]}">🔗</tg-emoji>'
+E["info"]     = f'<tg-emoji emoji-id="{E_IDS["info"]}">ℹ</tg-emoji>'
+E["bot"]      = f'<tg-emoji emoji-id="{E_IDS["bot"]}">🤖</tg-emoji>'
+E["eye"]      = f'<tg-emoji emoji-id="{E_IDS["eye"]}">👁</tg-emoji>'
+E["bell"]     = f'<tg-emoji emoji-id="{E_IDS["bell"]}">🔔</tg-emoji>'
+E["gift"]     = f'<tg-emoji emoji-id="{E_IDS["gift"]}">🎁</tg-emoji>'
+E["clock"]    = f'<tg-emoji emoji-id="{E_IDS["clock"]}">⏰</tg-emoji>'
+E["party"]    = f'<tg-emoji emoji-id="{E_IDS["party"]}">🎉</tg-emoji>'
+E["star"]     = f'<tg-emoji emoji-id="{E_IDS["star"]}">⭐</tg-emoji>'
+E["shield"]   = f'<tg-emoji emoji-id="{E_IDS["shield"]}">🛡</tg-emoji>'
+E["warn"]     = f'<tg-emoji emoji-id="{E_IDS["warn"]}">⚠</tg-emoji>'
+E["pc"]       = f'<tg-emoji emoji-id="{E_IDS["pc"]}">🖥</tg-emoji>'
+E["crown"]    = f'<tg-emoji emoji-id="{E_IDS["crown"]}">👑</tg-emoji>'
+E["back"]     = f'<tg-emoji emoji-id="{E_IDS["back"]}">◁</tg-emoji>'
+E["chart"]    = f'<tg-emoji emoji-id="{E_IDS["chart"]}">📊</tg-emoji>'
+E["lock"]     = f'<tg-emoji emoji-id="{E_IDS["lock"]}">🔒</tg-emoji>'
+E["unlock"]   = f'<tg-emoji emoji-id="{E_IDS["unlock"]}">🔓</tg-emoji>'
+E["mega"]     = f'<tg-emoji emoji-id="{E_IDS["mega"]}">📣</tg-emoji>'
+E["box"]      = f'<tg-emoji emoji-id="{E_IDS["box"]}">📦</tg-emoji>'
+E["reload"]   = f'<tg-emoji emoji-id="{E_IDS["reload"]}">🔄</tg-emoji>'
+E["home"]     = f'<tg-emoji emoji-id="{E_IDS["home"]}">🏘</tg-emoji>'
+E["smile"]    = f'<tg-emoji emoji-id="{E_IDS["smile"]}">🙂</tg-emoji>'
+E["book"]     = f'<tg-emoji emoji-id="{E_IDS["book"]}">📚</tg-emoji>'
+E["code"]     = f'<tg-emoji emoji-id="{E_IDS["code"]}">🔨</tg-emoji>'
+E["money"]    = f'<tg-emoji emoji-id="{E_IDS["money"]}">🪙</tg-emoji>'
+E["send"]     = f'<tg-emoji emoji-id="{E_IDS["send"]}">⬆</tg-emoji>'
+E["down"]     = f'<tg-emoji emoji-id="{E_IDS["down"]}">⬇</tg-emoji>'
+E["plus"]     = f'<tg-emoji emoji-id="{E_IDS["plus"]}">➕</tg-emoji>'
+E["minus"]    = f'<tg-emoji emoji-id="{E_IDS["minus"]}">➖</tg-emoji>'
+E["excl"]     = f'<tg-emoji emoji-id="{E_IDS["excl"]}">❕</tg-emoji>'
+E["question"] = f'<tg-emoji emoji-id="{E_IDS["question"]}">❔</tg-emoji>'
+E["brush"]    = f'<tg-emoji emoji-id="{E_IDS["brush"]}">🖌</tg-emoji>'
+E["bag"]      = f'<tg-emoji emoji-id="{E_IDS["bag"]}">💼</tg-emoji>'
+E["compass"]  = f'<tg-emoji emoji-id="{E_IDS["compass"]}">🧭</tg-emoji>'
+E["gamepad"]  = f'<tg-emoji emoji-id="{E_IDS["gamepad"]}">🎮</tg-emoji>'
+E["letter"]   = f'<tg-emoji emoji-id="{E_IDS["letter"]}">📨</tg-emoji>'
+E["photo"]    = f'<tg-emoji emoji-id="{E_IDS["photo"]}">🖼</tg-emoji>'
+E["pin"]      = f'<tg-emoji emoji-id="{E_IDS["pin"]}">📍</tg-emoji>'
+E["wallet"]   = f'<tg-emoji emoji-id="{E_IDS["wallet"]}">👛</tg-emoji>'
+E["tag"]      = f'<tg-emoji emoji-id="{E_IDS["tag"]}">🏷</tg-emoji>'
+E["heart"]    = f'<tg-emoji emoji-id="{E_IDS["heart"]}">❤</tg-emoji>'
+
+def btn(text: str, key: str, **kwargs) -> InlineKeyboardButton:
+    """Создает кнопку с иконкой из E_IDS."""
+    if key in E_IDS:
+        kwargs["icon_custom_emoji_id"] = E_IDS[key]
+    return InlineKeyboardButton(text=text, **kwargs)
 
 def eb(text: str, emoji_id: str) -> str:
     return f'<tg-emoji emoji-id="{emoji_id}">{text}</tg-emoji>'
 
 logging.basicConfig(level=logging.INFO)
 
+_db_cache: dict | None = None
+_last_db_load: float = 0
+
 def load_db() -> dict:
+    global _db_cache, _last_db_load
+    now = time.time()
+    if _db_cache is not None and (now - _last_db_load) < 1.0:
+        return _db_cache
     if not os.path.exists(DB_FILE):
-        return {
+        _db_cache = {
             "groups": {},
             "users": {},
             "global_bans": {},
@@ -119,10 +183,15 @@ def load_db() -> dict:
             "warned_owners": {},
             "pending_approval": []
         }
-    with open(DB_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
+    else:
+        with open(DB_FILE, "r", encoding="utf-8") as f:
+            _db_cache = json.load(f)
+    _last_db_load = now
+    return _db_cache
 
 def save_db(data: dict):
+    global _db_cache
+    _db_cache = data
     with open(DB_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
@@ -215,28 +284,42 @@ def get_role_label(db: dict, user_id: int, chat_id: int) -> str:
         return f'{E["profile"]} Модератор'
     return f'{E["profile"]} Участник'
 
-def is_staff(db: dict, user_id: int, chat_id: int) -> bool:
+async def is_staff(db: dict, user_id: int, chat_id: int, bot: Bot = None) -> bool:
+    if user_id == OWNER_ID:
+        return True
     group = get_group(db, chat_id)
     uid = str(user_id)
     owner_id = group.get("owner_id")
-    return (
-        user_id == OWNER_ID
-        or (owner_id is not None and user_id == owner_id)
-        or uid in group["staff"]["admins"]
-        or uid in group["staff"]["senior_admins"]
-        or uid in group["staff"]["mods"]
-    )
+    if (owner_id is not None and user_id == owner_id) or \
+       uid in group["staff"]["admins"] or \
+       uid in group["staff"]["senior_admins"] or \
+       uid in group["staff"]["mods"]:
+        return True
+    if bot:
+        try:
+            member = await bot.get_chat_member(chat_id, user_id)
+            return member.status in (ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.CREATOR)
+        except:
+            pass
+    return False
 
-def is_admin(db: dict, user_id: int, chat_id: int) -> bool:
+async def is_admin(db: dict, user_id: int, chat_id: int, bot: Bot = None) -> bool:
+    if user_id == OWNER_ID:
+        return True
     group = get_group(db, chat_id)
     uid = str(user_id)
     owner_id = group.get("owner_id")
-    return (
-        user_id == OWNER_ID
-        or (owner_id is not None and user_id == owner_id)
-        or uid in group["staff"]["admins"]
-        or uid in group["staff"]["senior_admins"]
-    )
+    if (owner_id is not None and user_id == owner_id) or \
+       uid in group["staff"]["admins"] or \
+       uid in group["staff"]["senior_admins"]:
+        return True
+    if bot:
+        try:
+            member = await bot.get_chat_member(chat_id, user_id)
+            return member.status in (ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.CREATOR)
+        except:
+            pass
+    return False
 
 def check_stats_date(group: dict):
     today = date.today()
@@ -321,7 +404,7 @@ async def cmd_start(message: Message):
                 f'{E["info"]} Для доступа нужно одобрение от владельца.',
                 parse_mode=ParseMode.HTML,
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(text="Запросить одобрение", icon_custom_emoji_id="5278411813468269386", callback_data="request_approval_start")]
+                    [btn("Запросить одобрение", "check", callback_data="request_approval_start")]
                 ])
             )
         return
@@ -341,11 +424,11 @@ async def cmd_start(message: Message):
             f'{E["info"]} Бот активен и работает!'
         )
         kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="Статистика", icon_custom_emoji_id="5278778882848220741", callback_data="owner_stats"),
-             InlineKeyboardButton(text="Группы", icon_custom_emoji_id="5298668674532538341", callback_data="owner_groups")],
-            [InlineKeyboardButton(text="Глобальные баны", icon_custom_emoji_id="5278578973595427038", callback_data="owner_gbans"),
-             InlineKeyboardButton(text="Одобрения", icon_custom_emoji_id="5278411813468269386", callback_data="owner_approvals")],
-            [InlineKeyboardButton(text="Рассылка", icon_custom_emoji_id="5278528159837348960", callback_data="owner_broadcast")],
+            [btn("Статистика", "chart", callback_data="owner_stats"),
+             btn("Группы", "people", callback_data="owner_groups")],
+            [btn("Глобальные баны", "cross", callback_data="owner_gbans"),
+             btn("Одобрения", "check", callback_data="owner_approvals")],
+            [btn("Рассылка", "mega", callback_data="owner_broadcast")],
         ])
         await message.answer(text, parse_mode=ParseMode.HTML, reply_markup=kb)
     else:
@@ -691,15 +774,15 @@ async def cmd_all_commands(message: Message):
     if message.from_user.id != OWNER_ID:
         return
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Баны и наказания", icon_custom_emoji_id="5278578973595427038", callback_data="cmds_bans"),
-         InlineKeyboardButton(text="Снятие наказаний", icon_custom_emoji_id="5278411813468269386", callback_data="cmds_unpunish")],
-        [InlineKeyboardButton(text="Персонал", icon_custom_emoji_id="5276262671962892944", callback_data="cmds_staff"),
-         InlineKeyboardButton(text="Управление чатом", icon_custom_emoji_id="5278602437001767574", callback_data="cmds_chat")],
-        [InlineKeyboardButton(text="Цензура", icon_custom_emoji_id="5276262671962892944", callback_data="cmds_censor"),
-         InlineKeyboardButton(text="Репутация", icon_custom_emoji_id="5276111746812112286", callback_data="cmds_rep")],
-        [InlineKeyboardButton(text="Статистика", icon_custom_emoji_id="5278778882848220741", callback_data="cmds_stats"),
-         InlineKeyboardButton(text="Утилиты", icon_custom_emoji_id="5278753302023004775", callback_data="cmds_utils")],
-        [InlineKeyboardButton(text="Рассылка", icon_custom_emoji_id="5278528159837348960", callback_data="cmds_broadcast")],
+        [btn("Баны и наказания", "cross", callback_data="cmds_bans"),
+         btn("Снятие наказаний", "check", callback_data="cmds_unpunish")],
+        [btn("Персонал", "people", callback_data="cmds_staff"),
+         btn("Управление чатом", "settings", callback_data="cmds_chat")],
+        [btn("Цензура", "cross", callback_data="cmds_censor"),
+         btn("Репутация", "star", callback_data="cmds_rep")],
+        [btn("Статистика", "chart", callback_data="panel_stats"),
+         btn("Утилиты", "info", callback_data="cmds_utils")],
+        [btn("Рассылка", "mega", callback_data="cmds_broadcast")],
     ])
     await message.reply(
         f'{E["crown"]} <b>Команды бота — выберите категорию</b>',
@@ -719,15 +802,15 @@ async def cmds_back_cb(call: CallbackQuery):
     if call.from_user.id != OWNER_ID:
         await call.answer("Нет доступа", show_alert=True); return
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Баны и наказания", icon_custom_emoji_id="5278578973595427038", callback_data="cmds_bans"),
-         InlineKeyboardButton(text="Снятие наказаний", icon_custom_emoji_id="5278411813468269386", callback_data="cmds_unpunish")],
-        [InlineKeyboardButton(text="Персонал", icon_custom_emoji_id="5276262671962892944", callback_data="cmds_staff"),
-         InlineKeyboardButton(text="Управление чатом", icon_custom_emoji_id="5278602437001767574", callback_data="cmds_chat")],
-        [InlineKeyboardButton(text="Цензура", icon_custom_emoji_id="5276262671962892944", callback_data="cmds_censor"),
-         InlineKeyboardButton(text="Репутация", icon_custom_emoji_id="5276111746812112286", callback_data="cmds_rep")],
-        [InlineKeyboardButton(text="Статистика", icon_custom_emoji_id="5278778882848220741", callback_data="cmds_stats"),
-         InlineKeyboardButton(text="Утилиты", icon_custom_emoji_id="5278753302023004775", callback_data="cmds_utils")],
-        [InlineKeyboardButton(text="Рассылка", icon_custom_emoji_id="5278528159837348960", callback_data="cmds_broadcast")],
+        [btn("Баны и наказания", "cross", callback_data="cmds_bans"),
+         btn("Снятие наказаний", "check", callback_data="cmds_unpunish")],
+        [btn("Персонал", "people", callback_data="cmds_staff"),
+         btn("Управление чатом", "settings", callback_data="cmds_chat")],
+        [btn("Цензура", "cross", callback_data="cmds_censor"),
+         btn("Репутация", "star", callback_data="cmds_rep")],
+        [btn("Статистика", "chart", callback_data="cmds_stats"),
+         btn("Утилиты", "info", callback_data="cmds_utils")],
+        [btn("Рассылка", "mega", callback_data="cmds_broadcast")],
     ])
     await call.message.edit_text(f'{E["crown"]} <b>Команды бота — выберите категорию</b>', parse_mode=ParseMode.HTML, reply_markup=kb)
     await call.answer()
@@ -1366,7 +1449,7 @@ async def cmd_warn(message: Message):
     if not await check_access_and_reply(message):
         return
     db = load_db()
-    if not is_staff(db, message.from_user.id, message.chat.id):
+    if not await is_staff(db, message.from_user.id, message.chat.id, message.bot):
         await message.reply(f'{E["cross"]} <b>Только персонал может выдавать предупреждения.</b>', parse_mode=ParseMode.HTML)
         return
     if not message.reply_to_message:
@@ -1438,7 +1521,7 @@ async def warn_minus_cb(call: CallbackQuery):
     if not await _cb_guard(call):
         return
     db = load_db()
-    if not is_staff(db, call.from_user.id, call.message.chat.id):
+    if not await is_staff(db, call.from_user.id, call.message.chat.id, call.bot):
         await call.answer("Нет доступа", show_alert=True)
         return
     uid = int(call.data.split("_")[2])
@@ -1453,7 +1536,7 @@ async def warn_plus_cb(call: CallbackQuery):
     if not await _cb_guard(call):
         return
     db = load_db()
-    if not is_staff(db, call.from_user.id, call.message.chat.id):
+    if not await is_staff(db, call.from_user.id, call.message.chat.id, call.bot):
         await call.answer("Нет доступа", show_alert=True)
         return
     uid = int(call.data.split("_")[2])
@@ -1467,7 +1550,7 @@ async def warn_reset_cb(call: CallbackQuery):
     if not await _cb_guard(call):
         return
     db = load_db()
-    if not is_staff(db, call.from_user.id, call.message.chat.id):
+    if not await is_staff(db, call.from_user.id, call.message.chat.id, call.bot):
         await call.answer("Нет доступа", show_alert=True)
         return
     uid = int(call.data.split("_")[2])
@@ -1512,7 +1595,7 @@ async def cmd_ban(message: Message):
     if not await check_access_and_reply(message):
         return
     db = load_db()
-    if not is_staff(db, message.from_user.id, message.chat.id):
+    if not await is_staff(db, message.from_user.id, message.chat.id, message.bot):
         await message.reply(f'{E["cross"]} <b>Только персонал может банить.</b>', parse_mode=ParseMode.HTML)
         return
     if not message.reply_to_message:
@@ -1550,7 +1633,7 @@ async def cmd_ban(message: Message):
 @router.callback_query(F.data.startswith("unban_"))
 async def unban_cb(call: CallbackQuery):
     db = load_db()
-    if not is_staff(db, call.from_user.id, call.message.chat.id):
+    if not await is_staff(db, call.from_user.id, call.message.chat.id, call.bot):
         await call.answer("Нет доступа", show_alert=True)
         return
     uid = int(call.data.split("_")[1])
@@ -1593,7 +1676,7 @@ async def cmd_mute(message: Message):
     if not await check_access_and_reply(message):
         return
     db = load_db()
-    if not is_staff(db, message.from_user.id, message.chat.id):
+    if not await is_staff(db, message.from_user.id, message.chat.id, message.bot):
         await message.reply(f'{E["cross"]} <b>Только персонал может мутить.</b>', parse_mode=ParseMode.HTML)
         return
     if not message.reply_to_message:
@@ -1668,7 +1751,7 @@ async def cmd_mute(message: Message):
 @router.callback_query(F.data.startswith("unmute_"))
 async def unmute_cb(call: CallbackQuery):
     db = load_db()
-    if not is_staff(db, call.from_user.id, call.message.chat.id):
+    if not await is_staff(db, call.from_user.id, call.message.chat.id, call.bot):
         await call.answer("Нет доступа", show_alert=True)
         return
     uid = int(call.data.split("_")[1])
@@ -1739,7 +1822,7 @@ async def cmd_kick(message: Message):
     if not await check_access_and_reply(message):
         return
     db = load_db()
-    if not is_staff(db, message.from_user.id, message.chat.id):
+    if not await is_staff(db, message.from_user.id, message.chat.id, message.bot):
         await message.reply(f'{E["cross"]} <b>Только персонал может кикать.</b>', parse_mode=ParseMode.HTML)
         return
     if not message.reply_to_message:
@@ -1813,7 +1896,7 @@ async def rep_ban_cb(call: CallbackQuery):
     if not await _cb_guard(call):
         return
     db = load_db()
-    if not is_staff(db, call.from_user.id, call.message.chat.id):
+    if not await is_staff(db, call.from_user.id, call.message.chat.id, call.bot):
         await call.answer("Нет доступа", show_alert=True)
         return
     uid = int(call.data.split("_")[2])
@@ -1832,7 +1915,7 @@ async def rep_mute_cb(call: CallbackQuery):
     if not await _cb_guard(call):
         return
     db = load_db()
-    if not is_staff(db, call.from_user.id, call.message.chat.id):
+    if not await is_staff(db, call.from_user.id, call.message.chat.id, call.bot):
         await call.answer("Нет доступа", show_alert=True)
         return
     uid = int(call.data.split("_")[2])
@@ -1856,7 +1939,7 @@ async def rep_warn_cb(call: CallbackQuery):
     if not await _cb_guard(call):
         return
     db = load_db()
-    if not is_staff(db, call.from_user.id, call.message.chat.id):
+    if not await is_staff(db, call.from_user.id, call.message.chat.id, call.bot):
         await call.answer("Нет доступа", show_alert=True)
         return
     uid = int(call.data.split("_")[2])
@@ -2016,7 +2099,7 @@ async def cmd_panel(message: Message):
     if not await check_access_and_reply(message):
         return
     db = load_db()
-    if not is_admin(db, message.from_user.id, message.chat.id):
+    if not await is_admin(db, message.from_user.id, message.chat.id, message.bot):
         await message.reply(f'{E["cross"]} <b>Только администраторы.</b>', parse_mode=ParseMode.HTML)
         return
     chat_id = message.chat.id
@@ -2027,15 +2110,15 @@ async def cmd_panel(message: Message):
     total_staff = len(staff["admins"]) + len(staff["senior_admins"]) + len(staff["mods"])
     users_count = len([k for k in db["users"] if k.startswith(f"{chat_id}_")])
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Настройки", icon_custom_emoji_id="5278602437001767574", callback_data="panel_settings"),
-         InlineKeyboardButton(text="Персонал", icon_custom_emoji_id="5298668674532538341", callback_data="panel_staff")],
-        [InlineKeyboardButton(text="Статистика", icon_custom_emoji_id="5278778882848220741", callback_data="panel_stats"),
-         InlineKeyboardButton(text="Репутация", icon_custom_emoji_id="5276111746812112286", callback_data="panel_rep")],
-        [InlineKeyboardButton(text="Наказания", icon_custom_emoji_id="5276240711795107620", callback_data="panel_punish"),
-         InlineKeyboardButton(text="Правила", icon_custom_emoji_id="5206626000665868017", callback_data="panel_rules")],
-        [InlineKeyboardButton(text="Цензура", icon_custom_emoji_id="5278578973595427038", callback_data="panel_censorship"),
-         InlineKeyboardButton(text="Антиспам", icon_custom_emoji_id="5276240711795107620", callback_data="panel_antispam")],
-        [InlineKeyboardButton(text="Закрыть", icon_custom_emoji_id="5278578973595427038", callback_data="close_msg")],
+        [btn("Настройки", "settings", callback_data="panel_settings"),
+         btn("Персонал", "people", callback_data="panel_staff")],
+        [btn("Статистика", "chart", callback_data="panel_stats"),
+         btn("Репутация", "star", callback_data="panel_rep")],
+        [btn("Наказания", "warn", callback_data="panel_punish"),
+         btn("Правила", "book", callback_data="panel_rules")],
+        [btn("Цензура", "cross", callback_data="panel_censorship"),
+         btn("Антиспам", "warn", callback_data="panel_antispam")],
+        [btn("Закрыть", "cross", callback_data="close_msg")],
     ])
     save_db(db)
     await message.reply(
@@ -2051,7 +2134,7 @@ async def cmd_panel(message: Message):
 @router.callback_query(F.data == "panel_settings")
 async def panel_settings_cb(call: CallbackQuery):
     db = load_db()
-    if not is_admin(db, call.from_user.id, call.message.chat.id):
+    if not await is_admin(db, call.from_user.id, call.message.chat.id, call.bot):
         await call.answer("Нет доступа", show_alert=True)
         return
     group = get_group(db, call.message.chat.id)
@@ -2061,23 +2144,11 @@ async def panel_settings_cb(call: CallbackQuery):
     antilinks = settings.get("antilinks", False)
     antispam = settings.get("antispam", False)
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(
-            text=(f'{E["check"]} Приветствие' if welcome else f'{E["cross"]} Приветствие'),
-            callback_data="toggle_welcome"
-        )],
-        [InlineKeyboardButton(
-            text=(f'{E["check"]} Антифлуд' if antiflood else f'{E["cross"]} Антифлуд'),
-            callback_data="toggle_antiflood"
-        )],
-        [InlineKeyboardButton(
-            text=(f'{E["check"]} Антиссылки' if antilinks else f'{E["cross"]} Антиссылки'),
-            callback_data="toggle_antilinks"
-        )],
-        [InlineKeyboardButton(
-            text=(f'{E["check"]} Антиспам' if antispam else f'{E["cross"]} Антиспам'),
-            callback_data="toggle_antispam"
-        )],
-        [InlineKeyboardButton(text="Назад", icon_custom_emoji_id="5206401524200145033", callback_data="panel_back")],
+        [btn(("Приветствие ✅" if welcome else "Приветствие ❌"), ("check" if welcome else "cross"), callback_data="toggle_welcome")],
+        [btn(("Антифлуд ✅" if antiflood else "Антифлуд ❌"), ("check" if antiflood else "cross"), callback_data="toggle_antiflood")],
+        [btn(("Антиссылки ✅" if antilinks else "Антиссылки ❌"), ("check" if antilinks else "cross"), callback_data="toggle_antilinks")],
+        [btn(("Антиспам ✅" if antispam else "Антиспам ❌"), ("check" if antispam else "cross"), callback_data="toggle_antispam")],
+        [btn("Назад", "back", callback_data="panel_back")],
     ])
     await call.message.edit_text(
         f'{E["settings"]} <b>Настройки группы</b>',
@@ -2124,7 +2195,7 @@ async def toggle_antispam_cb(call: CallbackQuery):
 @router.callback_query(F.data == "panel_censorship")
 async def panel_censorship_cb(call: CallbackQuery):
     db = load_db()
-    if not is_admin(db, call.from_user.id, call.message.chat.id):
+    if not await is_admin(db, call.from_user.id, call.message.chat.id, call.bot):
         await call.answer("Нет доступа", show_alert=True)
         return
     group = get_group(db, call.message.chat.id)
@@ -2148,7 +2219,7 @@ async def panel_censorship_cb(call: CallbackQuery):
 @router.callback_query(F.data == "censor_clear")
 async def censor_clear_cb(call: CallbackQuery):
     db = load_db()
-    if not is_admin(db, call.from_user.id, call.message.chat.id):
+    if not await is_admin(db, call.from_user.id, call.message.chat.id, call.bot):
         await call.answer("Нет доступа", show_alert=True)
         return
     group = get_group(db, call.message.chat.id)
@@ -2167,7 +2238,7 @@ async def censor_add_prompt_cb(call: CallbackQuery):
 @router.callback_query(F.data == "panel_antispam")
 async def panel_antispam_cb(call: CallbackQuery):
     db = load_db()
-    if not is_admin(db, call.from_user.id, call.message.chat.id):
+    if not await is_admin(db, call.from_user.id, call.message.chat.id, call.bot):
         await call.answer("Нет доступа", show_alert=True)
         return
     group = get_group(db, call.message.chat.id)
@@ -2193,7 +2264,7 @@ async def panel_antispam_cb(call: CallbackQuery):
 @router.callback_query(F.data == "panel_rep")
 async def panel_rep_cb(call: CallbackQuery):
     db = load_db()
-    if not is_admin(db, call.from_user.id, call.message.chat.id):
+    if not await is_admin(db, call.from_user.id, call.message.chat.id, call.bot):
         await call.answer("Нет доступа", show_alert=True)
         return
     group = get_group(db, call.message.chat.id)
@@ -2256,7 +2327,7 @@ async def rep_triggers_minus_cb(call: CallbackQuery):
 @router.callback_query(F.data == "rep_reset_limits")
 async def rep_reset_limits_cb(call: CallbackQuery):
     db = load_db()
-    if not is_admin(db, call.from_user.id, call.message.chat.id):
+    if not await is_admin(db, call.from_user.id, call.message.chat.id, call.bot):
         await call.answer("Нет доступа", show_alert=True)
         return
     chat_id = call.message.chat.id
@@ -2370,15 +2441,15 @@ async def render_panel_main(bot, chat_id: int, msg_id: int, db: dict, chat_title
     total_staff = len(staff.get("admins", [])) + len(staff.get("senior_admins", [])) + len(staff.get("mods", []))
     users_count = len([k for k in db["users"] if k.startswith(f"{chat_id}_")])
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Настройки", icon_custom_emoji_id="5278602437001767574", callback_data="panel_settings"),
-         InlineKeyboardButton(text="Персонал", icon_custom_emoji_id="5298668674532538341", callback_data="panel_staff")],
-        [InlineKeyboardButton(text="Статистика", icon_custom_emoji_id="5278778882848220741", callback_data="panel_stats"),
-         InlineKeyboardButton(text="Репутация", icon_custom_emoji_id="5276111746812112286", callback_data="panel_rep")],
-        [InlineKeyboardButton(text="Наказания", icon_custom_emoji_id="5276240711795107620", callback_data="panel_punish"),
-         InlineKeyboardButton(text="Правила", icon_custom_emoji_id="5206626000665868017", callback_data="panel_rules")],
-        [InlineKeyboardButton(text="Цензура", icon_custom_emoji_id="5278578973595427038", callback_data="panel_censorship"),
-         InlineKeyboardButton(text="Антиспам", icon_custom_emoji_id="5276240711795107620", callback_data="panel_antispam")],
-        [InlineKeyboardButton(text="Закрыть", icon_custom_emoji_id="5278578973595427038", callback_data="close_msg")],
+        [btn("Настройки", "settings", callback_data="panel_settings"),
+         btn("Персонал", "people", callback_data="panel_staff")],
+        [btn("Статистика", "chart", callback_data="panel_stats"),
+         btn("Репутация", "star", callback_data="panel_rep")],
+        [btn("Наказания", "warn", callback_data="panel_punish"),
+         btn("Правила", "book", callback_data="panel_rules")],
+        [btn("Цензура", "cross", callback_data="panel_censorship"),
+         btn("Антиспам", "warn", callback_data="panel_antispam")],
+        [btn("Закрыть", "cross", callback_data="close_msg")],
     ])
     await bot.edit_message_text(
         f'{E["pc"]} <b>Панель управления группой</b>\n\n'
@@ -2394,7 +2465,7 @@ async def render_panel_main(bot, chat_id: int, msg_id: int, db: dict, chat_title
 @router.callback_query(F.data == "panel_staff")
 async def panel_staff_cb(call: CallbackQuery):
     db = load_db()
-    if not is_admin(db, call.from_user.id, call.message.chat.id):
+    if not await is_admin(db, call.from_user.id, call.message.chat.id, call.bot):
         await call.answer("Нет доступа", show_alert=True)
         return
     await render_staff_panel(call.bot, call.message.chat.id, call.message.message_id, db)
@@ -2403,7 +2474,7 @@ async def panel_staff_cb(call: CallbackQuery):
 @router.callback_query(F.data == "panel_back")
 async def panel_back_cb(call: CallbackQuery):
     db = load_db()
-    if not is_admin(db, call.from_user.id, call.message.chat.id):
+    if not await is_admin(db, call.from_user.id, call.message.chat.id, call.bot):
         await call.answer("Нет доступа", show_alert=True)
         return
     save_db(db)
@@ -2418,7 +2489,7 @@ async def panel_back_cb(call: CallbackQuery):
 @router.callback_query(F.data == "staff_new")
 async def staff_new_cb(call: CallbackQuery):
     db = load_db()
-    if not is_admin(db, call.from_user.id, call.message.chat.id):
+    if not await is_admin(db, call.from_user.id, call.message.chat.id, call.bot):
         await call.answer("Нет доступа", show_alert=True)
         return
     chat_id = call.message.chat.id
@@ -2444,7 +2515,7 @@ async def staff_new_cb(call: CallbackQuery):
 async def staff_wiz_role_cb(call: CallbackQuery):
     """Шаг 2: выбор должности для нового сотрудника."""
     db = load_db()
-    if not is_admin(db, call.from_user.id, call.message.chat.id):
+    if not await is_admin(db, call.from_user.id, call.message.chat.id, call.bot):
         await call.answer("Нет доступа", show_alert=True)
         return
     parts = call.data.split("|")
@@ -2481,7 +2552,7 @@ async def staff_wiz_role_cb(call: CallbackQuery):
 async def staff_wiz_notitle_cb(call: CallbackQuery):
     """Добавить без кастомного звания."""
     db = load_db()
-    if not is_admin(db, call.from_user.id, call.message.chat.id):
+    if not await is_admin(db, call.from_user.id, call.message.chat.id, call.bot):
         await call.answer("Нет доступа", show_alert=True)
         return
     parts = call.data.split("|")
@@ -2518,7 +2589,7 @@ async def staff_wiz_cancel_cb(call: CallbackQuery):
 @router.callback_query(F.data.startswith("smng|"))
 async def staff_manage_cb(call: CallbackQuery):
     db = load_db()
-    if not is_admin(db, call.from_user.id, call.message.chat.id):
+    if not await is_admin(db, call.from_user.id, call.message.chat.id, call.bot):
         await call.answer("Нет доступа", show_alert=True)
         return
     uid_str = call.data[5:]
@@ -2557,7 +2628,7 @@ async def staff_manage_cb(call: CallbackQuery):
 @router.callback_query(F.data.startswith("smrole|"))
 async def staff_manage_role_cb(call: CallbackQuery):
     db = load_db()
-    if not is_admin(db, call.from_user.id, call.message.chat.id):
+    if not await is_admin(db, call.from_user.id, call.message.chat.id, call.bot):
         await call.answer("Нет доступа", show_alert=True)
         return
     uid_str = call.data[7:]
@@ -2583,7 +2654,7 @@ async def staff_manage_role_cb(call: CallbackQuery):
 @router.callback_query(F.data.startswith("smrole_set|"))
 async def staff_manage_role_set_cb(call: CallbackQuery):
     db = load_db()
-    if not is_admin(db, call.from_user.id, call.message.chat.id):
+    if not await is_admin(db, call.from_user.id, call.message.chat.id, call.bot):
         await call.answer("Нет доступа", show_alert=True)
         return
     parts = call.data.split("|")
@@ -2605,7 +2676,7 @@ async def staff_manage_role_set_cb(call: CallbackQuery):
 @router.callback_query(F.data.startswith("smtitle|"))
 async def staff_manage_title_cb(call: CallbackQuery):
     db = load_db()
-    if not is_admin(db, call.from_user.id, call.message.chat.id):
+    if not await is_admin(db, call.from_user.id, call.message.chat.id, call.bot):
         await call.answer("Нет доступа", show_alert=True)
         return
     uid_str = call.data[8:]
@@ -2653,7 +2724,7 @@ async def staff_title_reset_cb(call: CallbackQuery):
 @router.callback_query(F.data.startswith("smfire|"))
 async def staff_fire_cb(call: CallbackQuery):
     db = load_db()
-    if not is_admin(db, call.from_user.id, call.message.chat.id):
+    if not await is_admin(db, call.from_user.id, call.message.chat.id, call.bot):
         await call.answer("Нет доступа", show_alert=True)
         return
     uid_str = call.data[7:]
@@ -2673,7 +2744,7 @@ async def staff_fire_cb(call: CallbackQuery):
 @router.callback_query(F.data == "panel_rules")
 async def panel_rules_cb(call: CallbackQuery):
     db = load_db()
-    if not is_admin(db, call.from_user.id, call.message.chat.id):
+    if not await is_admin(db, call.from_user.id, call.message.chat.id, call.bot):
         await call.answer("Нет доступа", show_alert=True)
         return
     kb = InlineKeyboardMarkup(inline_keyboard=[
@@ -2689,7 +2760,7 @@ async def panel_rules_cb(call: CallbackQuery):
 @router.callback_query(F.data == "edit_rules")
 async def edit_rules_cb(call: CallbackQuery, state: FSMContext):
     db = load_db()
-    if not is_admin(db, call.from_user.id, call.message.chat.id):
+    if not await is_admin(db, call.from_user.id, call.message.chat.id, call.bot):
         await call.answer("Нет доступа", show_alert=True)
         return
     await state.update_data(chat_id=call.message.chat.id, msg_id=call.message.message_id)
@@ -3179,7 +3250,7 @@ async def cmd_silent_mute(message: Message):
     if not await check_access_and_reply(message):
         return
     db = load_db()
-    if not is_staff(db, message.from_user.id, message.chat.id):
+    if not await is_staff(db, message.from_user.id, message.chat.id, message.bot):
         await message.reply(f'{E["cross"]} <b>Только персонал может мутить.</b>', parse_mode=ParseMode.HTML)
         return
     if not message.reply_to_message:
@@ -4226,7 +4297,6 @@ async def cmd_compare(message: Message):
         return {"user_id": user.id, "first_name": user.full_name, "chat_id": chat_id,
                 "reputation": 0, "warns": 0, "violations": 0, "muted_until": None}
 
-    # Режим 1: ответ на сообщение + опционально 1 @username
     if message.reply_to_message and message.reply_to_message.from_user:
         targets.append(_user_to_dict(message.reply_to_message.from_user))
         for p in parts[1:]:
@@ -4236,10 +4306,8 @@ async def cmd_compare(message: Message):
                     targets.append(u)
                     break
         if len(targets) < 2:
-            # второй — сам отправитель
             targets.append(_user_to_dict(message.from_user))
     else:
-        # Режим 2: два @username в аргументах
         for p in parts[1:]:
             if p.startswith('@'):
                 u = _find_by_username(p)
@@ -4265,21 +4333,25 @@ async def cmd_compare(message: Message):
     v1, v2 = u1.get("violations", 0), u2.get("violations", 0)
     m1 = "замучен" if u1.get("muted_until") else "нет"
     m2 = "замучен" if u2.get("muted_until") else "нет"
-    def cmp(a, b, higher_better=True):
-        if a == b: return "="
-        win = a > b if higher_better else a < b
-        return f'{E["check"]}' if win else f'{E["cross"]}'
+
+    def cmp_bar(v1, v2, higher_better=True):
+        if v1 == v2: return "⏺ <i>Ничья</i>"
+        win = v1 > v2 if higher_better else v1 < v2
+        return f"⬅️ <b>Победа {n1}</b>" if win else f"➡️ <b>Победа {n2}</b>"
+
     await message.reply(
-        f'{E["chart"]} <b>Сравнение участников</b>\n\n'
-        f'<blockquote>'
-        f'<b>Показатель</b> — {mention_html(n1, u1["user_id"])} vs {mention_html(n2, u2["user_id"])}\n\n'
-        f'{E["star"]} Репутация: <b>{r1}</b> {cmp(r1,r2)} <b>{r2}</b>\n'
-        f'{E["warn"]} Варны: <b>{w1}/3</b> {cmp(w1,w2,False)} <b>{w2}/3</b>\n'
-        f'{E["cross"]} Нарушений: <b>{v1}</b> {cmp(v1,v2,False)} <b>{v2}</b>\n'
-        f'{E["clock"]} Мут: <b>{m1}</b> / <b>{m2}</b>\n'
-        f'{E["profile"]} Титул 1: {get_rep_title(r1, group)}\n'
-        f'{E["profile"]} Титул 2: {get_rep_title(r2, group)}'
-        f'</blockquote>',
+        f'{E["chart"]} <b>Сравнение: {n1} VS {n2}</b>\n\n'
+        f'<b>{E["star"]} Репутация:</b>\n'
+        f'└ {r1} vs {r2} — {cmp_bar(r1, r2)}\n\n'
+        f'<b>{E["warn"]} Предупреждения:</b>\n'
+        f'└ {w1}/3 vs {w2}/3 — {cmp_bar(w1, w2, False)}\n\n'
+        f'<b>{E["cross"]} Нарушения:</b>\n'
+        f'└ {v1} vs {v2} — {cmp_bar(v1, v2, False)}\n\n'
+        f'<b>{E["clock"]} Мут-статус:</b>\n'
+        f'└ {m1} vs {m2}\n\n'
+        f'<b>{E["profile"]} Титулы:</b>\n'
+        f'└ {n1}: {get_rep_title(r1, group)}\n'
+        f'└ {n2}: {get_rep_title(r2, group)}',
         parse_mode=ParseMode.HTML
     )
 
@@ -4509,9 +4581,9 @@ async def cmd_vote(message: Message):
         return
     question = parts[1]
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=f'{E["check"]} Да (0)', callback_data='vote_yes_0'),
-         InlineKeyboardButton(text=f'{E["cross"]} Нет (0)', callback_data='vote_no_0')],
-        [InlineKeyboardButton(text='Завершить', icon_custom_emoji_id="5278578973595427038", callback_data='vote_end')],
+        [btn('Да (0)', 'check', callback_data='vote_yes_0'),
+         btn('Нет (0)', 'cross', callback_data='vote_no_0')],
+        [btn('Завершить', 'cross', callback_data='vote_end')],
     ])
     await message.answer(
         f'{E["bell"]} <b>Голосование</b>\n\n<blockquote>{question}</blockquote>',
@@ -4542,9 +4614,9 @@ async def vote_cb(call: CallbackQuery):
     yes = len(VOTE_DATA[msg_key]["yes"])
     no = len(VOTE_DATA[msg_key]["no"])
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=f'{E["check"]} Да ({yes})', callback_data=f'vote_yes_{yes}'),
-         InlineKeyboardButton(text=f'{E["cross"]} Нет ({no})', callback_data=f'vote_no_{no}')],
-        [InlineKeyboardButton(text='Завершить', icon_custom_emoji_id="5278578973595427038", callback_data='vote_end')],
+        [btn(f'Да ({yes})', 'check', callback_data=f'vote_yes_{yes}'),
+         btn(f'Нет ({no})', 'cross', callback_data=f'vote_no_{no}')],
+        [btn('Завершить', 'cross', callback_data='vote_end')],
     ])
     try:
         await call.message.edit_reply_markup(reply_markup=kb)
