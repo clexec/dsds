@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, date
 from typing import Optional
 
 import aiohttp
-from aiogram import Bot, Dispatcher, F, Router
+from aiogram import Bot, Dispatcher, F, Router, BaseMiddleware
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode, ChatMemberStatus
 from aiogram.filters import Command, CommandStart
@@ -277,6 +277,11 @@ SPAM_TRACKER: dict[int, dict[int, dict]] = {}
 SPAM_MSG_LIMIT = 5      # одинаковых сообщений за окно
 SPAM_STICKER_LIMIT = 5  # стикеров за окно
 SPAM_WINDOW = 30        # секунд
+
+# antiflood: {chat_id: {user_id: [timestamps]}}
+FLOOD_TRACKER: dict[int, dict[int, list]] = {}
+FLOOD_MSG_LIMIT = 7     # сообщений за окно
+FLOOD_WINDOW = 10       # секунд
 
 def _check_spam(chat_id: int, uid: int, text: str | None, is_sticker: bool) -> bool:
     now = time.time()
@@ -1618,9 +1623,6 @@ async def cmd_mute(message: Message):
     udata["violations"] = udata.get("violations", 0) + 1
     save_db(db)
     mod_name = message.from_user.full_name
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Размутить", icon_custom_emoji_id="5278411813468269386", callback_data=f"unmute_{target.id}")]
-    ])
     try:
         await message.bot.restrict_chat_member(
             message.chat.id, target.id,
@@ -1644,11 +1646,20 @@ async def cmd_mute(message: Message):
     except TelegramBadRequest as e:
         await message.reply(f'{E["cross"]} Ошибка: {e}', parse_mode=ParseMode.HTML)
         return
+    # Публичное сообщение — без кнопки (обычные пользователи не должны видеть кнопку размутить)
     await message.reply(
         f'{E["clock"]} {mention_html(target.full_name, target.id)} [<code>{target.id}</code>] замучен(а).\n'
         f'<blockquote>Срок: <b>{duration_label}</b>\nПричина: {reason_text}\nМодератор: {mention_html(mod_name, message.from_user.id)}</blockquote>',
+        parse_mode=ParseMode.HTML
+    )
+    # Кнопка размутить — только персоналу в ЛС или скрытым сообщением с кнопкой
+    kb_staff = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Размутить", icon_custom_emoji_id="5278411813468269386", callback_data=f"unmute_{target.id}")]
+    ])
+    await message.answer(
+        f'{E["shield"]} <b>Панель персонала</b> — {mention_html(target.full_name, target.id)}',
         parse_mode=ParseMode.HTML,
-        reply_markup=kb
+        reply_markup=kb_staff
     )
     await log_action(message.bot, "МУТ", message.chat.id, message.chat.title or "",
                      message.from_user.id, mod_name, target.id, target.full_name,
@@ -2051,19 +2062,19 @@ async def panel_settings_cb(call: CallbackQuery):
     antispam = settings.get("antispam", False)
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
-            text=("✅ Приветствие" if welcome else "❌ Приветствие"),
+            text=(f'{E["check"]} Приветствие' if welcome else f'{E["cross"]} Приветствие'),
             callback_data="toggle_welcome"
         )],
         [InlineKeyboardButton(
-            text=("✅ Антифлуд" if antiflood else "❌ Антифлуд"),
+            text=(f'{E["check"]} Антифлуд' if antiflood else f'{E["cross"]} Антифлуд'),
             callback_data="toggle_antiflood"
         )],
         [InlineKeyboardButton(
-            text=("✅ Антиссылки" if antilinks else "❌ Антиссылки"),
+            text=(f'{E["check"]} Антиссылки' if antilinks else f'{E["cross"]} Антиссылки'),
             callback_data="toggle_antilinks"
         )],
         [InlineKeyboardButton(
-            text=("✅ Антиспам" if antispam else "❌ Антиспам"),
+            text=(f'{E["check"]} Антиспам' if antispam else f'{E["cross"]} Антиспам'),
             callback_data="toggle_antispam"
         )],
         [InlineKeyboardButton(text="Назад", icon_custom_emoji_id="5206401524200145033", callback_data="panel_back")],
@@ -2163,7 +2174,7 @@ async def panel_antispam_cb(call: CallbackQuery):
     antispam = group["settings"].get("antispam", False)
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
-            text=("✅ Антиспам" if antispam else "❌ Антиспам"),
+            text=(f'{E["check"]} Антиспам' if antispam else f'{E["cross"]} Антиспам'),
             callback_data="toggle_antispam"
         )],
         [InlineKeyboardButton(text="Назад", icon_custom_emoji_id="5206401524200145033", callback_data="panel_back")],
@@ -2491,7 +2502,7 @@ async def staff_wiz_notitle_cb(call: CallbackQuery):
     group.get("staff_titles", {}).pop(uid_str, None)
     save_db(db)
     role_name = get_role_display_name(group, role_key)
-    await call.answer(f"✅ {target_name} добавлен как {role_name}!", show_alert=True)
+    await call.answer(f"{target_name} добавлен как {role_name}!", show_alert=True)
     await render_staff_panel(call.bot, chat_id, call.message.message_id, db)
 
 @router.callback_query(F.data == "staff_wiz_cancel")
@@ -2752,19 +2763,19 @@ async def cmd_settings(message: Message):
     captcha = settings.get("captcha", False)
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
-            text=("✅ Приветствие" if welcome else "❌ Приветствие"),
+            text=(f'{E["check"]} Приветствие' if welcome else f'{E["cross"]} Приветствие'),
             callback_data="toggle_welcome"
         )],
         [InlineKeyboardButton(
-            text=("✅ Антифлуд" if antiflood else "❌ Антифлуд"),
+            text=(f'{E["check"]} Антифлуд' if antiflood else f'{E["cross"]} Антифлуд'),
             callback_data="toggle_antiflood"
         )],
         [InlineKeyboardButton(
-            text=("✅ Антиссылки" if antilinks else "❌ Антиссылки"),
+            text=(f'{E["check"]} Антиссылки' if antilinks else f'{E["cross"]} Антиссылки'),
             callback_data="toggle_antilinks"
         )],
         [InlineKeyboardButton(
-            text=("✅ Капча" if captcha else "❌ Капча"),
+            text=(f'{E["check"]} Капча' if captcha else f'{E["cross"]} Капча'),
             callback_data="toggle_captcha"
         )],
         [InlineKeyboardButton(text="Закрыть", icon_custom_emoji_id="5278578973595427038", callback_data="close_msg")],
@@ -3265,14 +3276,18 @@ async def cmd_freeze(message: Message):
     udata["muted_until"] = "9999-12-31 23:59"
     udata["violations"] = udata.get("violations", 0) + 1
     save_db(db)
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="Разморозить", icon_custom_emoji_id="5278411813468269386", callback_data=f"unmute_{target.id}")]
-    ])
     await message.reply(
         f'{E["lock"]} {mention_html(target.full_name, target.id)} [<code>{target.id}</code>] <b>заморожен</b> бессрочно.\n'
         f'<blockquote>Модератор: {mention_html(message.from_user.full_name, message.from_user.id)}</blockquote>',
+        parse_mode=ParseMode.HTML
+    )
+    kb_staff = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Разморозить", icon_custom_emoji_id="5278411813468269386", callback_data=f"unmute_{target.id}")]
+    ])
+    await message.answer(
+        f'{E["shield"]} <b>Панель персонала</b> — {mention_html(target.full_name, target.id)}',
         parse_mode=ParseMode.HTML,
-        reply_markup=kb
+        reply_markup=kb_staff
     )
     await log_action(message.bot, "ЗАМОРОЗИТЬ (бессрочный мут)", message.chat.id, message.chat.title or "",
                      message.from_user.id, message.from_user.full_name, target.id, target.full_name)
@@ -3620,9 +3635,11 @@ async def cmd_clear_titles(message: Message):
     save_db(db)
     await message.reply(f'{E["trash"]} Все титулы репутации удалены.', parse_mode=ParseMode.HTML)
 
-@router.message(F.chat.type.in_({"group", "supergroup"}))
-async def track_messages(message: Message):
+async def _process_group_message(message: Message):
+    """Счётчик, антифлуд, антиспам, антиссылки, автомод — вызывается из middleware для КАЖДОГО группового сообщения."""
     if not message.from_user or message.from_user.is_bot:
+        return
+    if message.chat.type not in ("group", "supergroup"):
         return
 
     chat_id = message.chat.id
@@ -3791,19 +3808,18 @@ async def track_messages(message: Message):
     check_stats_date(group)
     uid_str = str(uid)
     name_now = user.full_name
-    # сегодня
+
+    # ── Счётчик сообщений (считаем ВСЕ, включая команды) ──
     if uid_str not in group["stats_today"]:
         group["stats_today"][uid_str] = {"count": 0, "name": name_now}
     group["stats_today"][uid_str]["count"] += 1
     group["stats_today"][uid_str]["name"] = name_now
-    # неделя
     if "stats_week" not in group:
         group["stats_week"] = {}
     if uid_str not in group["stats_week"]:
         group["stats_week"][uid_str] = {"count": 0, "name": name_now}
     group["stats_week"][uid_str]["count"] += 1
     group["stats_week"][uid_str]["name"] = name_now
-    # месяц
     if "stats_month" not in group:
         group["stats_month"] = {}
     if uid_str not in group["stats_month"]:
@@ -3815,7 +3831,7 @@ async def track_messages(message: Message):
     udata["stats_all_count"] = udata.get("stats_all_count", 0) + 1
     udata["first_name"] = user.full_name
     udata["username"] = user.username or ""
-    # Сбрасываем устаревшие ban_expires (старая логика, теперь используем muted_until)
+
     if udata.get("banned") and udata.get("ban_expires"):
         try:
             expires = datetime.strptime(udata["ban_expires"], "%Y-%m-%d %H:%M")
@@ -3823,7 +3839,6 @@ async def track_messages(message: Message):
                 udata["banned"] = False
                 udata["ban_expires"] = None
                 udata["warns"] = 0
-                save_db(db)
         except:
             pass
     if db.get("global_bans", {}).get(uid_str):
@@ -3839,7 +3854,7 @@ async def track_messages(message: Message):
         return
     settings = group.get("settings", {})
 
-    # ── Мут — если пользователь замучен, удаляем сообщение и переприменяем ограничение ──
+    # ── Мут — если пользователь замучен, удаляем сообщение ──
     if udata.get("muted_until"):
         try:
             muted_until_dt = datetime.strptime(udata["muted_until"], "%Y-%m-%d %H:%M")
@@ -3852,16 +3867,11 @@ async def track_messages(message: Message):
                     await message.bot.restrict_chat_member(
                         chat_id, uid,
                         permissions=ChatPermissions(
-                            can_send_messages=False,
-                            can_send_audios=False,
-                            can_send_documents=False,
-                            can_send_photos=False,
-                            can_send_videos=False,
-                            can_send_video_notes=False,
-                            can_send_voice_notes=False,
-                            can_send_polls=False,
-                            can_send_other_messages=False,
-                            can_add_web_page_previews=False,
+                            can_send_messages=False, can_send_audios=False,
+                            can_send_documents=False, can_send_photos=False,
+                            can_send_videos=False, can_send_video_notes=False,
+                            can_send_voice_notes=False, can_send_polls=False,
+                            can_send_other_messages=False, can_add_web_page_previews=False,
                         ),
                         until_date=muted_until_dt
                     )
@@ -3871,11 +3881,10 @@ async def track_messages(message: Message):
                 return
             else:
                 udata["muted_until"] = None
-                save_db(db)
         except:
             pass
 
-    # ── Цензура — молча удаляем сообщения с запрещёнными словами ──
+    # ── Цензура ──
     censor_words = group.get("censorship", [])
     if censor_words and (message.text or message.caption):
         msg_text_low = (message.text or message.caption or "").lower()
@@ -3888,64 +3897,107 @@ async def track_messages(message: Message):
                 save_db(db)
                 return
 
-    # ── Антиспам ──
-    if settings.get("antispam", False) and not is_staff(db, uid, chat_id):
-        is_sticker = bool(message.sticker)
-        msg_text_for_spam = message.text if message.text else None
-        if _check_spam(chat_id, uid, msg_text_for_spam, is_sticker):
-            try:
-                await message.delete()
-            except:
-                pass
-            udata["warns"] = udata.get("warns", 0) + 1
-            warns = udata["warns"]
-            save_db(db)
-            warn_msg = await message.answer(
-                f'{E["warn"]} {mention_html(user.full_name, uid)}, антиспам! Предупреждение <b>{warns}/3</b>.',
-                parse_mode=ParseMode.HTML
-            )
-            await asyncio.sleep(5)
-            try:
-                await warn_msg.delete()
-            except:
-                pass
-            if warns >= 3:
-                until = datetime.now() + timedelta(days=7)
+    if not is_staff(db, uid, chat_id):
+        msg_text = message.text or message.caption or ""
+
+        # ── Антиспам (одинаковые сообщения / стикеры) ──
+        if settings.get("antispam", False):
+            is_sticker = bool(message.sticker)
+            if _check_spam(chat_id, uid, message.text if message.text else None, is_sticker):
+                try:
+                    await message.delete()
+                except:
+                    pass
+                udata["warns"] = udata.get("warns", 0) + 1
+                warns = udata["warns"]
+                udata["violations"] = udata.get("violations", 0) + 1
+                save_db(db)
+                warn_msg = await message.answer(
+                    f'{E["warn"]} {mention_html(user.full_name, uid)}, антиспам! Предупреждение <b>{warns}/3</b>.',
+                    parse_mode=ParseMode.HTML
+                )
+                await asyncio.sleep(5)
+                try:
+                    await warn_msg.delete()
+                except:
+                    pass
+                if warns >= 3:
+                    until = datetime.now() + timedelta(days=7)
+                    try:
+                        await message.bot.restrict_chat_member(
+                            chat_id, uid,
+                            permissions=ChatPermissions(can_send_messages=False),
+                            until_date=until
+                        )
+                        udata["muted_until"] = until.strftime("%Y-%m-%d %H:%M")
+                        save_db(db)
+                    except:
+                        pass
+                return
+
+        # ── Антифлуд (много сообщений за 10 сек) ──
+        if settings.get("antiflood", False):
+            now_ts = time.time()
+            flood_chat = FLOOD_TRACKER.setdefault(chat_id, {})
+            flood_user = flood_chat.setdefault(uid, [])
+            flood_user = [t for t in flood_user if now_ts - t < FLOOD_WINDOW]
+            flood_user.append(now_ts)
+            flood_chat[uid] = flood_user
+            if len(flood_user) >= FLOOD_MSG_LIMIT:
+                flood_chat[uid] = []
+                try:
+                    await message.delete()
+                except:
+                    pass
+                udata["warns"] = udata.get("warns", 0) + 1
+                warns = udata["warns"]
+                udata["violations"] = udata.get("violations", 0) + 1
+                save_db(db)
+                until = datetime.now() + timedelta(minutes=10)
                 try:
                     await message.bot.restrict_chat_member(
                         chat_id, uid,
                         permissions=ChatPermissions(can_send_messages=False),
                         until_date=until
                     )
+                    udata["muted_until"] = until.strftime("%Y-%m-%d %H:%M")
+                    save_db(db)
                 except:
                     pass
-            return
-
-    if settings.get("antilinks", False) and not is_staff(db, uid, chat_id):
-        text = message.text or message.caption or ""
-        if re.search(r'(https?://|t\.me/|@\w+)', text):
-            try:
-                await message.delete()
-                await message.answer(
-                    f'{E["cross"]} {mention_html(user.full_name, uid)}, ссылки запрещены!',
+                warn_msg = await message.answer(
+                    f'{E["warn"]} {mention_html(user.full_name, uid)}, антифлуд! Мут 10 мин. Предупреждение <b>{warns}/3</b>.',
                     parse_mode=ParseMode.HTML
                 )
-            except:
-                pass
+                await asyncio.sleep(5)
+                try:
+                    await warn_msg.delete()
+                except:
+                    pass
+                return
 
-    # ── Автомодерация — только для не-персонала ───────────────────────────────
-    if not is_staff(db, uid, chat_id):
-        msg_text = message.text or message.caption or ""
+        # ── Антиссылки ──
+        if settings.get("antilinks", False) and msg_text:
+            if re.search(r'(https?://|t\.me/|@\w{3,})', msg_text):
+                try:
+                    await message.delete()
+                    await message.answer(
+                        f'{E["cross"]} {mention_html(user.full_name, uid)}, ссылки запрещены!',
+                        parse_mode=ParseMode.HTML
+                    )
+                except:
+                    pass
+                save_db(db)
+                return
 
-        # 1. Капслок: сообщение > 10 слов и > 70% заглавных → удалить + варн
+        # ── Капслок ──
         if msg_text and len(msg_text) > 20:
-            words = msg_text.split()
-            if len(words) >= 10:
-                caps_count = sum(1 for w in words if w.isupper() and len(w) > 1)
-                if caps_count / len(words) > 0.7:
+            words_caps = msg_text.split()
+            if len(words_caps) >= 10:
+                caps_count = sum(1 for w in words_caps if w.isupper() and len(w) > 1)
+                if caps_count / len(words_caps) > 0.7:
                     try:
                         await message.delete()
-                    except Exception:
+                    except:
                         pass
                     udata["warns"] = udata.get("warns", 0) + 1
                     udata["violations"] = udata.get("violations", 0) + 1
@@ -3955,12 +4007,14 @@ async def track_messages(message: Message):
                         parse_mode=ParseMode.HTML
                     )
                     await asyncio.sleep(5)
-                    try: await warn_msg.delete()
-                    except Exception: pass
+                    try:
+                        await warn_msg.delete()
+                    except:
+                        pass
                     save_db(db)
                     return
 
-        # 2. Ссылки: новый участник (< 24ч) → удалить молча
+        # ── Ссылки от новичка < 24ч ──
         if msg_text:
             join_date_str = udata.get("join_date")
             is_new = False
@@ -3968,17 +4022,17 @@ async def track_messages(message: Message):
                 try:
                     jd = datetime.strptime(join_date_str, "%Y-%m-%d")
                     is_new = (datetime.now() - jd).total_seconds() < 86400
-                except Exception:
+                except:
                     pass
             if is_new and re.search(r'(https?://|t\.me/)', msg_text):
                 try:
                     await message.delete()
-                except Exception:
+                except:
                     pass
                 save_db(db)
                 return
 
-        # 3. Ссылки 2 раза подряд → автомут 30 мин
+        # ── Ссылки 2 раза подряд → автомут 30 мин ──
         if msg_text and re.search(r'(https?://|t\.me/)', msg_text):
             chat_links = _link_tracker.setdefault(chat_id, {})
             chat_links[uid] = chat_links.get(uid, 0) + 1
@@ -3994,19 +4048,19 @@ async def track_messages(message: Message):
                     udata["muted_until"] = until.strftime("%Y-%m-%d %H:%M")
                     udata["violations"] = udata.get("violations", 0) + 1
                     await message.answer(
-                        f'{E["lock"]} {mention_html(user.full_name, uid)} — автомут на 30 мин за повторную отправку ссылок.',
+                        f'{E["lock"]} {mention_html(user.full_name, uid)} — автомут 30 мин за повторные ссылки.',
                         parse_mode=ParseMode.HTML
                     )
                     await log_action(message.bot, "АВТОМУТ (ссылки)", chat_id, message.chat.title or "",
                                      OWNER_ID, "Автомодерация", uid, user.full_name, "ссылки 2 раза подряд")
-                except Exception:
+                except:
                     pass
                 save_db(db)
                 return
-        else:
-            # Сброс счётчика ссылок если написал нормальное сообщение
+        elif msg_text is not None:
             _link_tracker.setdefault(chat_id, {}).pop(uid, None)
 
+    # ── Репутация по триггерам ──
     if message.text:
         text_low = message.text.lower().strip()
         if message.reply_to_message and message.reply_to_message.from_user:
@@ -4035,14 +4089,13 @@ async def track_messages(message: Message):
                             parse_mode=ParseMode.HTML
                         )
                     else:
-                        # Проверка кулдауна на конкретного пользователя
                         cooldown_h = group.get("rep_cooldown_hours", 0.0)
                         target_key = str(replied_user.id)
                         last_ts = targets_today.get(target_key, 0)
                         if cooldown_h > 0 and (time.time() - last_ts) < cooldown_h * 3600:
                             remaining = int(cooldown_h * 3600 - (time.time() - last_ts)) // 60
                             await message.reply(
-                                f'{E["clock"]} Кулдаун: подождите ещё <b>{remaining} мин.</b> перед следующей оценкой этого пользователя.',
+                                f'{E["clock"]} Кулдаун: ещё <b>{remaining} мин.</b>',
                                 parse_mode=ParseMode.HTML
                             )
                         else:
@@ -4064,6 +4117,15 @@ async def track_messages(message: Message):
                                 parse_mode=ParseMode.HTML
                             )
     save_db(db)
+
+
+class GroupMessageMiddleware(BaseMiddleware):
+    """Middleware — запускает _process_group_message для КАЖДОГО группового сообщения до передачи хендлеру."""
+    async def __call__(self, handler, event, data):
+        message = event
+        if hasattr(message, "chat") and message.chat and message.chat.type in ("group", "supergroup"):
+            await _process_group_message(message)
+        return await handler(event, data)
 
 @router.message(Command("clear"))
 async def cmd_clear(message: Message):
@@ -4148,21 +4210,53 @@ async def cmd_compare(message: Message):
     db = load_db()
     chat_id = message.chat.id
     parts = message.text.split()
-    # Собираем до 2 @username из аргументов
     targets = []
-    for p in parts[1:]:
-        if p.startswith('@'):
-            uname = p[1:].lower()
-            for u in db["users"].values():
-                if (u.get("username") or "").lower() == uname and u.get("chat_id") == chat_id:
+
+    def _find_by_username(uname: str):
+        uname = uname.lstrip('@').lower()
+        for u in db["users"].values():
+            if (u.get("username") or "").lower() == uname and u.get("chat_id") == chat_id:
+                return u
+        return None
+
+    def _user_to_dict(user):
+        key = f"{chat_id}_{user.id}"
+        if key in db["users"]:
+            return db["users"][key]
+        return {"user_id": user.id, "first_name": user.full_name, "chat_id": chat_id,
+                "reputation": 0, "warns": 0, "violations": 0, "muted_until": None}
+
+    # Режим 1: ответ на сообщение + опционально 1 @username
+    if message.reply_to_message and message.reply_to_message.from_user:
+        targets.append(_user_to_dict(message.reply_to_message.from_user))
+        for p in parts[1:]:
+            if p.startswith('@'):
+                u = _find_by_username(p)
+                if u:
                     targets.append(u)
                     break
-        if len(targets) == 2:
-            break
+        if len(targets) < 2:
+            # второй — сам отправитель
+            targets.append(_user_to_dict(message.from_user))
+    else:
+        # Режим 2: два @username в аргументах
+        for p in parts[1:]:
+            if p.startswith('@'):
+                u = _find_by_username(p)
+                if u:
+                    targets.append(u)
+            if len(targets) == 2:
+                break
+
     if len(targets) < 2:
-        await message.reply(f'{E["warn"]} Укажите двух пользователей: <code>!сравнить @user1 @user2</code>', parse_mode=ParseMode.HTML)
+        await message.reply(
+            f'{E["warn"]} Укажите двух пользователей:\n'
+            f'<code>!сравнить @user1 @user2</code>\n'
+            f'или ответьте на сообщение пользователя командой <code>!сравнить</code>',
+            parse_mode=ParseMode.HTML
+        )
         return
-    u1, u2 = targets
+    u1, u2 = targets[0], targets[1]
     n1 = u1.get("first_name") or u1.get("username") or str(u1["user_id"])
     n2 = u2.get("first_name") or u2.get("username") or str(u2["user_id"])
     group = get_group(db, chat_id)
@@ -4415,8 +4509,8 @@ async def cmd_vote(message: Message):
         return
     question = parts[1]
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text='✅ Да (0)', callback_data='vote_yes_0'),
-         InlineKeyboardButton(text='❌ Нет (0)', callback_data='vote_no_0')],
+        [InlineKeyboardButton(text=f'{E["check"]} Да (0)', callback_data='vote_yes_0'),
+         InlineKeyboardButton(text=f'{E["cross"]} Нет (0)', callback_data='vote_no_0')],
         [InlineKeyboardButton(text='Завершить', icon_custom_emoji_id="5278578973595427038", callback_data='vote_end')],
     ])
     await message.answer(
@@ -4448,8 +4542,8 @@ async def vote_cb(call: CallbackQuery):
     yes = len(VOTE_DATA[msg_key]["yes"])
     no = len(VOTE_DATA[msg_key]["no"])
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=f'✅ Да ({yes})', callback_data=f'vote_yes_{yes}'),
-         InlineKeyboardButton(text=f'❌ Нет ({no})', callback_data=f'vote_no_{no}')],
+        [InlineKeyboardButton(text=f'{E["check"]} Да ({yes})', callback_data=f'vote_yes_{yes}'),
+         InlineKeyboardButton(text=f'{E["cross"]} Нет ({no})', callback_data=f'vote_no_{no}')],
         [InlineKeyboardButton(text='Завершить', icon_custom_emoji_id="5278578973595427038", callback_data='vote_end')],
     ])
     try:
@@ -4488,6 +4582,7 @@ async def main():
     )
     storage = MemoryStorage()
     dp = Dispatcher(storage=storage)
+    dp.message.outer_middleware(GroupMessageMiddleware())
     dp.include_router(router)
     await dp.start_polling(bot, allowed_updates=["message", "callback_query", "my_chat_member", "chat_member"])
 
