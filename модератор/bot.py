@@ -640,23 +640,23 @@ async def request_approval_confirm_cb(call: CallbackQuery):
         db["pending_approval"] = pending
         save_db(db)
     name = call.from_user.full_name
-    username = call.from_user.username or tr("unknown", OWNER_ID)
+    username = call.from_user.username or tr("unknown", OWNER_ID, 0)
     try:
         kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text=tr("approval_approve_btn", OWNER_ID), icon_custom_emoji_id="5278411813468269386", callback_data=f"approve_{uid}"),
-             InlineKeyboardButton(text=tr("approval_reject_btn", OWNER_ID), icon_custom_emoji_id="5278578973595427038", callback_data=f"reject_{uid}")],
+            [InlineKeyboardButton(text=tr("approval_approve_btn", OWNER_ID, 0), icon_custom_emoji_id="5278411813468269386", callback_data=f"approve_{uid}"),
+             InlineKeyboardButton(text=tr("approval_reject_btn", OWNER_ID, 0), icon_custom_emoji_id="5278578973595427038", callback_data=f"reject_{uid}")],
         ])
         await call.bot.send_message(
             OWNER_ID,
-            f'{E["bell"]} <b>{tr("approval_new_request", OWNER_ID)}</b>\n\n'
-            f'{E["profile"]} {tr("approval_name_label", OWNER_ID)}: <b>{name}</b>\n'
-            f'{E["link"]} {tr("approval_username_label", OWNER_ID)}: @{username}\n'
+            f'{E["bell"]} <b>{tr("approval_new_request", OWNER_ID, 0)}</b>\n\n'
+            f'{E["profile"]} {tr("approval_name_label", OWNER_ID, 0)}: <b>{name}</b>\n'
+            f'{E["link"]} {tr("approval_username_label", OWNER_ID, 0)}: @{username}\n'
             f'{E["info"]} ID: <code>{uid}</code>',
             parse_mode=ParseMode.HTML,
             reply_markup=kb
         )
-    except:
-        pass
+    except Exception as e:
+        logging.error(f"Failed to send approval request to owner: {e}")
     await call.message.edit_text(
         f'{E["check"]} <b>{tr("approval_sent_title", uid, call.message.chat.id)}</b>\n\n'
         f'{tr("approval_sent_text", uid, call.message.chat.id, owner=OWNER_USERNAME)}',
@@ -677,24 +677,24 @@ async def back_to_start_cb(call: CallbackQuery):
     db = load_db()
     uid = call.from_user.id
     approved = uid in db.get("approved_owners", [])
-    name = call.from_user.first_name or tr("user", uid, message.chat.id)
+    name = call.from_user.first_name or tr("user", uid, call.message.chat.id)
     warned = db.get("warned_owners", {})
     warn_count = warned.get(str(uid), 0)
     if approved:
-        access_line = f'{E["check"]} <b>{tr("start_approved", uid, message.chat.id)}</b>'
+        access_line = f'{E["check"]} <b>{tr("start_approved", uid, call.message.chat.id)}</b>'
     elif warn_count >= 3:
-        access_line = f'{E["cross"]} <b>{tr("start_blocked", uid, message.chat.id)}</b>'
+        access_line = f'{E["cross"]} <b>{tr("start_blocked", uid, call.message.chat.id)}</b>'
     else:
-        access_line = f'{E["warn"]} <b>{tr("start_not_approved", uid, message.chat.id)}</b>'
+        access_line = f'{E["warn"]} <b>{tr("start_not_approved", uid, call.message.chat.id)}</b>'
     text = (
         f'{E["bot"]} <b>{tr("start_hello", uid, name=name)}</b>\n\n'
-        f'{E["profile"]} {tr("start_user_label", uid, message.chat.id)}: <b>{name}</b> [<code>{uid}</code>]\n'
-        f'{E["shield"]} {tr("start_access_label", uid, message.chat.id)}: {access_line}\n\n'
-        f'{E["info"]} {tr("start_add_info", uid, message.chat.id)}'
+        f'{E["profile"]} {tr("start_user_label", uid, call.message.chat.id)}: <b>{name}</b> [<code>{uid}</code>]\n'
+        f'{E["shield"]} {tr("start_access_label", uid, call.message.chat.id)}: {access_line}\n\n'
+        f'{E["info"]} {tr("start_add_info", uid, call.message.chat.id)}'
     )
-    buttons = [[InlineKeyboardButton(text=tr("start_help_btn", uid, message.chat.id), icon_custom_emoji_id="5242205011529719330", callback_data="help_main")]]
+    buttons = [[InlineKeyboardButton(text=tr("start_help_btn", uid, call.message.chat.id), icon_custom_emoji_id="5242205011529719330", callback_data="help_main")]]
     if not approved and warn_count < 3:
-        buttons.append([InlineKeyboardButton(text=tr("start_request_btn", uid, message.chat.id), icon_custom_emoji_id="5278411813468269386", callback_data="request_approval_start")])
+        buttons.append([InlineKeyboardButton(text=tr("start_request_btn", uid, call.message.chat.id), icon_custom_emoji_id="5278411813468269386", callback_data="request_approval_start")])
     await call.message.edit_text(text, parse_mode=ParseMode.HTML, reply_markup=InlineKeyboardMarkup(inline_keyboard=buttons))
     await call.answer()
 
