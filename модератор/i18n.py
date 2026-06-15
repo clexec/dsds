@@ -47,12 +47,12 @@ def init_i18n():
     """Настраивает python-i18n. Вызывать один раз при старте бота."""
     if not _I18N_AVAILABLE:
         return
-    _i18n.set("file_format", "yml")
-    _i18n.set("filename_format", "{locale}.{format}")
-    _i18n.set("load_path", [LOCALES_DIR])
-    _i18n.set("fallback", DEFAULT_LANG)
-    _i18n.set("error_on_missing_translation", False)
-    _i18n.set("error_on_missing_placeholder", False)
+    _i18n.config.file_format = "yml"
+    _i18n.config.filename_format = "{locale}.{format}"
+    _i18n.config.load_path.append(LOCALES_DIR)
+    _i18n.config.fallback = DEFAULT_LANG
+    _i18n.config.error_on_missing_translation = False
+    _i18n.config.error_on_missing_placeholder = False
     logger.info("i18n: инициализирован, locales_dir=%s", LOCALES_DIR)
 
 
