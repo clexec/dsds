@@ -1541,6 +1541,8 @@ async def cmd_ban(message: Message):
     )
     await log_action(message.bot, "БАН", message.chat.id, message.chat.title or "",
                      message.from_user.id, mod_name, target.id, target.full_name, f"причина: {reason}")
+
+@router.callback_query(F.data.startswith("unban_"))
 async def unban_cb(call: CallbackQuery):
     db = load_db()
     if not is_staff(db, call.from_user.id, call.message.chat.id):
@@ -1651,6 +1653,8 @@ async def cmd_mute(message: Message):
     await log_action(message.bot, "МУТ", message.chat.id, message.chat.title or "",
                      message.from_user.id, mod_name, target.id, target.full_name,
                      f"срок: {duration_label}, причина: {reason_text}")
+
+@router.callback_query(F.data.startswith("unmute_"))
 async def unmute_cb(call: CallbackQuery):
     db = load_db()
     if not is_staff(db, call.from_user.id, call.message.chat.id):
@@ -1753,6 +1757,8 @@ async def cmd_kick(message: Message):
     )
     await log_action(message.bot, "КИК", message.chat.id, message.chat.title or "",
                      message.from_user.id, mod_name, target.id, target.full_name, f"причина: {reason}")
+
+@router.message(F.text.regexp(r'(?i)^[!]репорт$'))
 async def cmd_report(message: Message):
     if not await check_access_and_reply(message):
         return
@@ -3207,9 +3213,72 @@ async def cmd_silent_mute(message: Message):
     except:
         pass
 
+@router.message(F.text.regexp(r'(?i)^[!]заморозить'))
+async def cmd_freeze(message: Message):
+    """Бессрочный мут (заморозить)."""
+    if not await check_access_and_reply(message):
+        return
+    db = load_db()
+    if not is_staff(db, message.from_user.id, message.chat.id):
+        await message.reply(f'{E["cross"]} <b>Только персонал.</b>', parse_mode=ParseMode.HTML)
+        return
+    target = None
+    if message.reply_to_message:
+        target = message.reply_to_message.from_user
+    else:
+        parts = message.text.split()
+        if len(parts) > 1:
+            arg = parts[1].lstrip('@')
+            for u in db["users"].values():
+                if (u.get("username") or "").lower() == arg.lower() and u.get("chat_id") == message.chat.id:
+                    class FU:
+                        id = u["user_id"]
+                        full_name = u.get("first_name") or arg
+                    target = FU()
+                    break
+    if not target:
+        await message.reply(f'{E["warn"]} <b>Ответьте на сообщение или укажите @username.</b>', parse_mode=ParseMode.HTML)
+        return
+    if target.id == OWNER_ID:
+        await message.reply(f'{E["cross"]} <b>Нельзя замораживать владельца.</b>', parse_mode=ParseMode.HTML)
+        return
+    try:
+        await message.bot.restrict_chat_member(
+            message.chat.id, target.id,
+            permissions=ChatPermissions(
+                can_send_messages=False,
+                can_send_audios=False,
+                can_send_documents=False,
+                can_send_photos=False,
+                can_send_videos=False,
+                can_send_video_notes=False,
+                can_send_voice_notes=False,
+                can_send_polls=False,
+                can_send_other_messages=False,
+                can_add_web_page_previews=False,
+            )
+        )
+    except Exception as e:
+        await message.reply(f'{E["cross"]} Ошибка: {e}', parse_mode=ParseMode.HTML)
+        return
+    udata = get_user(db, target.id, message.chat.id)
+    udata["muted_until"] = "9999-12-31 23:59"
+    udata["violations"] = udata.get("violations", 0) + 1
+    save_db(db)
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Разморозить", icon_custom_emoji_id="5278411813468269386", callback_data=f"unmute_{target.id}")]
+    ])
+    await message.reply(
+        f'{E["lock"]} {mention_html(target.full_name, target.id)} [<code>{target.id}</code>] <b>заморожен</b> бессрочно.\n'
+        f'<blockquote>Модератор: {mention_html(message.from_user.full_name, message.from_user.id)}</blockquote>',
+        parse_mode=ParseMode.HTML,
+        reply_markup=kb
+    )
+    await log_action(message.bot, "ЗАМОРОЗИТЬ (бессрочный мут)", message.chat.id, message.chat.title or "",
+                     message.from_user.id, message.from_user.full_name, target.id, target.full_name)
+
 @router.message(F.text.regexp(r'(?i)^[!]история$'))
 async def cmd_history(message: Message):
-    """История нарушений пользователя."""
     if not await check_access_info(message):
         return
     db = load_db()
@@ -3264,10 +3333,17 @@ async def cmd_censorship_cmd(message: Message):
             return
         words = [w.strip().lower() for w in parts[2].split(',') if w.strip()]
         added = [w for w in words if w not in group["censorship"]]
+        already = [w for w in words if w in group["censorship"]]
         for w in added:
             group["censorship"].append(w)
         save_db(db)
-        await message.reply(f'{E["check"]} Добавлено в цензуру: <b>{", ".join(added)}</b>\nВсего слов: <b>{len(group["censorship"])}</b>', parse_mode=ParseMode.HTML)
+        if added:
+            msg = f'{E["check"]} Добавлено в цензуру: <b>{", ".join(added)}</b>\nВсего слов: <b>{len(group["censorship"])}</b>'
+            if already:
+                msg += f'\n{E["info"]} Уже были в списке: <b>{", ".join(already)}</b>'
+        else:
+            msg = f'{E["info"]} Все указанные слова уже в списке цензуры: <b>{", ".join(already)}</b>'
+        await message.reply(msg, parse_mode=ParseMode.HTML)
 
     elif sub == 'удалить':
         if len(parts) < 3:
