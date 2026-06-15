@@ -278,7 +278,7 @@ async def lang_cb_handler(call: _CallbackQuery):
 
     db = _db_loader() if _db_loader else {}
     
-    # Смена языка разрешена только владельцу бота или если это первый выбор
+    # Смена языка разрешена только владельцу бота
     from bot import OWNER_ID
     if uid != OWNER_ID:
         await call.answer("Только владелец бота может менять глобальный язык.", show_alert=True)
@@ -297,12 +297,10 @@ async def lang_cb_handler(call: _CallbackQuery):
 
     msg_key = "lang_set_ru" if new_lang == "ru" else "lang_set_en"
     await call.answer(tr(msg_key, uid), show_alert=True)
-    await call.message.delete()
-    # Отправляем /start снова чтобы показать панель
-    from bot import Command
-    from aiogram.filters import CommandObject
-    # В aiogram 3.x проще вызвать хендлер напрямую или попросить юзера нажать /start
-    await call.message.answer("Настройки сохранены. Нажмите /start для входа в панель.")
+    
+    # Вместо удаления сообщения и просьбы нажать /start, вызываем /start программно
+    from bot import cmd_start
+    await cmd_start(call.message)
 
 @lang_router.callback_query(_F.data.in_({"set_initial_lang_ru", "set_initial_lang_en"}))
 async def set_initial_lang_cb(call: _CallbackQuery):
@@ -327,8 +325,8 @@ async def set_initial_lang_cb(call: _CallbackQuery):
         save_db(db)
 
     await call.answer("Язык успешно установлен!", show_alert=True)
-    await call.message.delete()
-    await call.message.answer("Бот настроен. Нажмите /start для входа в панель.")
+    from bot import cmd_start
+    await cmd_start(call.message)
 
 @lang_router.callback_query(_F.data == "request_lang_change")
 async def request_lang_change_cb(call: _CallbackQuery):

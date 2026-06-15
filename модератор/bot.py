@@ -135,6 +135,7 @@ E_IDS = {
     "wallet":       "5276398496008663230",
     "tag":          "5276422526350681413",
     "heart":        "5278611606756942667",
+    "earth":        "5206202791768393003",
 }
 
 E = {k: f'<tg-emoji emoji-id="{v}">_</tg-emoji>'.replace('_', '') for k, v in E_IDS.items()}
@@ -187,6 +188,7 @@ E["pin"]      = f'<tg-emoji emoji-id="{E_IDS["pin"]}">📍</tg-emoji>'
 E["wallet"]   = f'<tg-emoji emoji-id="{E_IDS["wallet"]}">👛</tg-emoji>'
 E["tag"]      = f'<tg-emoji emoji-id="{E_IDS["tag"]}">🏷</tg-emoji>'
 E["heart"]    = f'<tg-emoji emoji-id="{E_IDS["heart"]}">❤</tg-emoji>'
+E["earth"]    = f'<tg-emoji emoji-id="{E_IDS["earth"]}">🌍</tg-emoji>'
 
 def btn(text: str, key: str, **kwargs) -> InlineKeyboardButton:
     """Создает кнопку с иконкой из E_IDS."""
@@ -473,13 +475,24 @@ async def cmd_start(message: Message):
         # Если язык — DEFAULT_LANG, но в БД его нет, считаем что язык не выбран
         # (get_user_lang возвращает DEFAULT_LANG если в БД пусто)
         
-        # Ищем в БД напрямую чтобы понять, был ли выбор
+        # Проверяем, установлен ли язык в БД для владельца
         has_lang = False
         for key, udata in db.get("users", {}).items():
-            if udata.get("user_id") == uid and udata.get("lang"):
+            if udata.get("user_id") == uid and udata.get("lang") in ["ru", "en"]:
                 has_lang = True
                 break
         
+        # Если в users нет, проверим группы (хотя для владельца это не совсем корректно, но для полноты)
+        if not has_lang:
+            for g_id, gdata in db.get("groups", {}).items():
+                if gdata.get("lang") in ["ru", "en"]:
+                    has_lang = True
+                    # Если нашли в группе, проставим владельцу
+                    from localization import set_user_lang
+                    set_user_lang(uid, gdata["lang"], db)
+                    save_db(db)
+                    break
+
         if not has_lang:
             kb = InlineKeyboardMarkup(inline_keyboard=[
                 [
