@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 # ─── Попытка импортировать python-i18n ────────────────────────────────────────
 
 try:
-    import i18n as _i18n
+    import i18n
     _I18N_AVAILABLE = True
 except ImportError:
     _I18N_AVAILABLE = False
@@ -47,12 +47,12 @@ def init_i18n():
     """Настраивает python-i18n. Вызывать один раз при старте бота."""
     if not _I18N_AVAILABLE:
         return
-    _i18n.config.file_format = "yml"
-    _i18n.config.filename_format = "{locale}.{format}"
-    _i18n.config.load_path.append(LOCALES_DIR)
-    _i18n.config.fallback = DEFAULT_LANG
-    _i18n.config.error_on_missing_translation = False
-    _i18n.config.error_on_missing_placeholder = False
+    i18n.config.file_format = "yml"
+    i18n.config.filename_format = "{locale}.{format}"
+    i18n.config.load_path.append(LOCALES_DIR)
+    i18n.config.fallback = DEFAULT_LANG
+    i18n.config.error_on_missing_translation = False
+    i18n.config.error_on_missing_placeholder = False
     logger.info("i18n: инициализирован, locales_dir=%s", LOCALES_DIR)
 
 
@@ -171,7 +171,7 @@ def set_db_loader(loader):
     """
     Устанавливает функцию загрузки БД (load_db из bot.py).
     Вызывать после инициализации бота:
-        from i18n import set_db_loader
+        from localization import set_db_loader
         set_db_loader(load_db)
     """
     global _db_loader
@@ -205,14 +205,14 @@ def tr(key_or_text: str, user_id: int, chat_id: Optional[int] = None, **kwargs) 
     # Пробуем получить перевод
     try:
         full_key = f"{lang}.{key_or_text}"
-        translated = _i18n.t(full_key, **kwargs)
+        translated = i18n.t(full_key, **kwargs)
 
         # python-i18n возвращает ключ если перевод не найден
         if translated == full_key or translated == key_or_text:
             # Пробуем fallback на русский
             if lang != DEFAULT_LANG:
                 fallback_key = f"{DEFAULT_LANG}.{key_or_text}"
-                fallback = _i18n.t(fallback_key, **kwargs)
+                fallback = i18n.t(fallback_key, **kwargs)
                 if fallback != fallback_key and fallback != key_or_text:
                     _record_missing(key_or_text, lang)
                     return fallback

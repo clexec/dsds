@@ -31,7 +31,7 @@ from cache import (
     periodic_cleanup as periodic_redis_cleanup,
 )
 from storage import db_write_lock, read_db_sync, write_db_sync
-from i18n import (
+from localization import (
     init_i18n, set_db_loader, tr, lang_router,
     set_user_lang, invalidate_lang_cache, get_user_lang,
 )
