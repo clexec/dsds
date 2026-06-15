@@ -51,6 +51,23 @@ GROUP_CB_COOLDOWN_SEC = 2.0
 
 # Трекер ссылок для автомута (chat_id → {user_id: count})
 _link_tracker: dict[int, dict[int, int]] = {}
+# Кэш администраторов чата (chat_id → {user_id: True, ...}) с TTL 5 минут
+_admin_cache: dict[int, tuple[set, float]] = {}
+ADMIN_CACHE_TTL = 300.0  # 5 минут
+
+async def get_chat_admin_ids(bot: Bot, chat_id: int) -> set:
+    """Возвращает set user_id администраторов чата с кэшированием на 5 минут."""
+    now = time.time()
+    cached = _admin_cache.get(chat_id)
+    if cached and (now - cached[1]) < ADMIN_CACHE_TTL:
+        return cached[0]
+    try:
+        admins = await bot.get_chat_administrators(chat_id)
+        ids = {a.user.id for a in admins}
+        _admin_cache[chat_id] = (ids, now)
+        return ids
+    except Exception:
+        return cached[0] if cached else set()
 
 
 E_IDS = {
@@ -189,11 +206,29 @@ def load_db() -> dict:
     _last_db_load = now
     return _db_cache
 
+_last_db_save: float = 0
+_db_dirty: bool = False
+
 def save_db(data: dict):
-    global _db_cache
+    """Сохраняет БД. Использует дебаунс 2 сек для снижения нагрузки на диск."""
+    global _db_cache, _last_db_save, _db_dirty
     _db_cache = data
-    with open(DB_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+    _db_dirty = True
+    now = time.time()
+    if now - _last_db_save >= 2.0:
+        _last_db_save = now
+        _db_dirty = False
+        with open(DB_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+
+def force_save_db():
+    """Принудительно сохраняет БД (вызывается при завершении или критических операциях)."""
+    global _db_cache, _last_db_save, _db_dirty
+    if _db_cache is not None and _db_dirty:
+        _last_db_save = time.time()
+        _db_dirty = False
+        with open(DB_FILE, "w", encoding="utf-8") as f:
+            json.dump(_db_cache, f, ensure_ascii=False, indent=2)
 
 def get_group(db: dict, chat_id: int) -> dict:
     key = str(chat_id)
@@ -297,9 +332,10 @@ async def is_staff(db: dict, user_id: int, chat_id: int, bot: Bot = None) -> boo
         return True
     if bot:
         try:
-            member = await bot.get_chat_member(chat_id, user_id)
-            return member.status in (ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.CREATOR)
-        except:
+            admin_ids = await get_chat_admin_ids(bot, chat_id)
+            if user_id in admin_ids:
+                return True
+        except Exception:
             pass
     return False
 
@@ -315,9 +351,10 @@ async def is_admin(db: dict, user_id: int, chat_id: int, bot: Bot = None) -> boo
         return True
     if bot:
         try:
-            member = await bot.get_chat_member(chat_id, user_id)
-            return member.status in (ChatMemberStatus.ADMINISTRATOR, ChatMemberStatus.CREATOR)
-        except:
+            admin_ids = await get_chat_admin_ids(bot, chat_id)
+            if user_id in admin_ids:
+                return True
+        except Exception:
             pass
     return False
 
@@ -1572,7 +1609,7 @@ async def cmd_unwarn(message: Message):
     if not await check_access_and_reply(message):
         return
     db = load_db()
-    if not is_staff(db, message.from_user.id, message.chat.id):
+    if not await is_staff(db, message.from_user.id, message.chat.id, message.bot):
         await message.reply(f'{E["cross"]} <b>Только персонал может снимать предупреждения.</b>', parse_mode=ParseMode.HTML)
         return
     if not message.reply_to_message:
@@ -1652,7 +1689,7 @@ async def cmd_unban(message: Message):
     if not await check_access_and_reply(message):
         return
     db = load_db()
-    if not is_staff(db, message.from_user.id, message.chat.id):
+    if not await is_staff(db, message.from_user.id, message.chat.id, message.bot):
         await message.reply(f'{E["cross"]} <b>Только персонал может разбанивать.</b>', parse_mode=ParseMode.HTML)
         return
     if not message.reply_to_message:
@@ -1784,7 +1821,7 @@ async def cmd_unmute(message: Message):
     if not await check_access_and_reply(message):
         return
     db = load_db()
-    if not is_staff(db, message.from_user.id, message.chat.id):
+    if not await is_staff(db, message.from_user.id, message.chat.id, message.bot):
         await message.reply(f'{E["cross"]} <b>Только персонал может снимать мут.</b>', parse_mode=ParseMode.HTML)
         return
     if not message.reply_to_message:
@@ -1955,7 +1992,7 @@ async def cmd_pin(message: Message):
     if not await check_access_and_reply(message):
         return
     db = load_db()
-    if not is_staff(db, message.from_user.id, message.chat.id):
+    if not await is_staff(db, message.from_user.id, message.chat.id, message.bot):
         await message.reply(f'{E["cross"]} <b>Только персонал может закреплять.</b>', parse_mode=ParseMode.HTML)
         return
     if not message.reply_to_message:
@@ -1972,7 +2009,7 @@ async def cmd_unpin(message: Message):
     if not await check_access_and_reply(message):
         return
     db = load_db()
-    if not is_staff(db, message.from_user.id, message.chat.id):
+    if not await is_staff(db, message.from_user.id, message.chat.id, message.bot):
         await message.reply(f'{E["cross"]} <b>Только персонал может откреплять.</b>', parse_mode=ParseMode.HTML)
         return
     try:
@@ -1986,7 +2023,7 @@ async def cmd_invite(message: Message):
     if not await check_access_and_reply(message):
         return
     db = load_db()
-    if not is_staff(db, message.from_user.id, message.chat.id):
+    if not await is_staff(db, message.from_user.id, message.chat.id, message.bot):
         await message.reply(f'{E["cross"]} <b>Только персонал может создавать ссылки.</b>', parse_mode=ParseMode.HTML)
         return
     parts = message.text.split(maxsplit=1)
@@ -2005,7 +2042,7 @@ async def cmd_set_mod(message: Message):
     if not await check_access_and_reply(message):
         return
     db = load_db()
-    if not is_admin(db, message.from_user.id, message.chat.id):
+    if not await is_admin(db, message.from_user.id, message.chat.id, message.bot):
         await message.reply(f'{E["cross"]} <b>Только администраторы могут назначать модераторов.</b>', parse_mode=ParseMode.HTML)
         return
     if not message.reply_to_message:
@@ -2144,10 +2181,10 @@ async def panel_settings_cb(call: CallbackQuery):
     antilinks = settings.get("antilinks", False)
     antispam = settings.get("antispam", False)
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [btn(("Приветствие ✅" if welcome else "Приветствие ❌"), ("check" if welcome else "cross"), callback_data="toggle_welcome")],
-        [btn(("Антифлуд ✅" if antiflood else "Антифлуд ❌"), ("check" if antiflood else "cross"), callback_data="toggle_antiflood")],
-        [btn(("Антиссылки ✅" if antilinks else "Антиссылки ❌"), ("check" if antilinks else "cross"), callback_data="toggle_antilinks")],
-        [btn(("Антиспам ✅" if antispam else "Антиспам ❌"), ("check" if antispam else "cross"), callback_data="toggle_antispam")],
+        [btn("Приветствие", ("check" if welcome else "cross"), callback_data="toggle_welcome")],
+        [btn("Антифлуд", ("check" if antiflood else "cross"), callback_data="toggle_antiflood")],
+        [btn("Антиссылки", ("check" if antilinks else "cross"), callback_data="toggle_antilinks")],
+        [btn("Антиспам", ("check" if antispam else "cross"), callback_data="toggle_antispam")],
         [btn("Назад", "back", callback_data="panel_back")],
     ])
     await call.message.edit_text(
@@ -2159,6 +2196,9 @@ async def panel_settings_cb(call: CallbackQuery):
 @router.callback_query(F.data == "toggle_welcome")
 async def toggle_welcome_cb(call: CallbackQuery):
     db = load_db()
+    if not await is_admin(db, call.from_user.id, call.message.chat.id, call.bot):
+        await call.answer("Нет доступа", show_alert=True)
+        return
     group = get_group(db, call.message.chat.id)
     group["settings"]["welcome"] = not group["settings"].get("welcome", True)
     save_db(db)
@@ -2168,6 +2208,9 @@ async def toggle_welcome_cb(call: CallbackQuery):
 @router.callback_query(F.data == "toggle_antiflood")
 async def toggle_antiflood_cb(call: CallbackQuery):
     db = load_db()
+    if not await is_admin(db, call.from_user.id, call.message.chat.id, call.bot):
+        await call.answer("Нет доступа", show_alert=True)
+        return
     group = get_group(db, call.message.chat.id)
     group["settings"]["antiflood"] = not group["settings"].get("antiflood", False)
     save_db(db)
@@ -2177,6 +2220,9 @@ async def toggle_antiflood_cb(call: CallbackQuery):
 @router.callback_query(F.data == "toggle_antilinks")
 async def toggle_antilinks_cb(call: CallbackQuery):
     db = load_db()
+    if not await is_admin(db, call.from_user.id, call.message.chat.id, call.bot):
+        await call.answer("Нет доступа", show_alert=True)
+        return
     group = get_group(db, call.message.chat.id)
     group["settings"]["antilinks"] = not group["settings"].get("antilinks", False)
     save_db(db)
@@ -2186,6 +2232,9 @@ async def toggle_antilinks_cb(call: CallbackQuery):
 @router.callback_query(F.data == "toggle_antispam")
 async def toggle_antispam_cb(call: CallbackQuery):
     db = load_db()
+    if not await is_admin(db, call.from_user.id, call.message.chat.id, call.bot):
+        await call.answer("Нет доступа", show_alert=True)
+        return
     group = get_group(db, call.message.chat.id)
     group["settings"]["antispam"] = not group["settings"].get("antispam", False)
     save_db(db)
@@ -2245,7 +2294,8 @@ async def panel_antispam_cb(call: CallbackQuery):
     antispam = group["settings"].get("antispam", False)
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
-            text=(f'{E["check"]} Антиспам' if antispam else f'{E["cross"]} Антиспам'),
+            text="Антиспам",
+            icon_custom_emoji_id=E_IDS["check"] if antispam else E_IDS["cross"],
             callback_data="toggle_antispam"
         )],
         [InlineKeyboardButton(text="Назад", icon_custom_emoji_id="5206401524200145033", callback_data="panel_back")],
@@ -2293,6 +2343,9 @@ async def panel_rep_cb(call: CallbackQuery):
 @router.callback_query(F.data == "rep_triggers_plus")
 async def rep_triggers_plus_cb(call: CallbackQuery):
     db = load_db()
+    if not await is_admin(db, call.from_user.id, call.message.chat.id, call.bot):
+        await call.answer("Нет доступа", show_alert=True)
+        return
     group = get_group(db, call.message.chat.id)
     triggers = group.get("rep_triggers_plus", [])
     lines = '\n'.join(f'<b>L</b> {t}' for t in triggers)
@@ -2310,6 +2363,9 @@ async def rep_triggers_plus_cb(call: CallbackQuery):
 @router.callback_query(F.data == "rep_triggers_minus")
 async def rep_triggers_minus_cb(call: CallbackQuery):
     db = load_db()
+    if not await is_admin(db, call.from_user.id, call.message.chat.id, call.bot):
+        await call.answer("Нет доступа", show_alert=True)
+        return
     group = get_group(db, call.message.chat.id)
     triggers = group.get("rep_triggers_minus", [])
     lines = '\n'.join(f'<b>L</b> {t}' for t in triggers)
@@ -2338,9 +2394,296 @@ async def rep_reset_limits_cb(call: CallbackQuery):
     save_db(db)
     await call.answer("Лимиты сброшены!", show_alert=True)
 
+# ─── FSM для редактирования триггеров репутации ───────────────────────────────
+class RepTriggerFSM(StatesGroup):
+    add_plus = State()
+    del_plus = State()
+    add_minus = State()
+    del_minus = State()
+    set_limit = State()
+    set_cooldown = State()
+
+@router.callback_query(F.data == "rep_add_plus")
+async def rep_add_plus_cb(call: CallbackQuery, state: FSMContext):
+    db = load_db()
+    if not await is_admin(db, call.from_user.id, call.message.chat.id, call.bot):
+        await call.answer("Нет доступа", show_alert=True)
+        return
+    await state.set_state(RepTriggerFSM.add_plus)
+    await state.update_data(chat_id=call.message.chat.id, msg_id=call.message.message_id)
+    await call.message.edit_text(
+        f'{E["plus"]} <b>Добавить триггер повышения</b>\n\nВведите слово или фразу (например: <code>спасибо</code>):',
+        parse_mode=ParseMode.HTML,
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="Отмена", icon_custom_emoji_id="5278578973595427038", callback_data="rep_triggers_plus")]
+        ])
+    )
+    await call.answer()
+
+@router.message(RepTriggerFSM.add_plus)
+async def rep_add_plus_fsm(message: Message, state: FSMContext):
+    data = await state.get_data()
+    chat_id = data.get("chat_id")
+    if not chat_id or message.chat.id != chat_id:
+        return
+    db = load_db()
+    if not await is_admin(db, message.from_user.id, chat_id, message.bot):
+        await state.clear()
+        return
+    await state.clear()
+    word = (message.text or "").strip().lower()
+    if not word:
+        await message.reply(f'{E["warn"]} Пустое значение.', parse_mode=ParseMode.HTML)
+        return
+    group = get_group(db, chat_id)
+    triggers = group.get("rep_triggers_plus", [])
+    if word not in triggers:
+        triggers.append(word)
+        group["rep_triggers_plus"] = triggers
+        save_db(db)
+        await message.reply(f'{E["check"]} Триггер <b>{word}</b> добавлен в повышение репутации.', parse_mode=ParseMode.HTML)
+    else:
+        await message.reply(f'{E["info"]} Триггер <b>{word}</b> уже есть в списке.', parse_mode=ParseMode.HTML)
+    try:
+        await message.delete()
+    except Exception:
+        pass
+
+@router.callback_query(F.data == "rep_del_plus")
+async def rep_del_plus_cb(call: CallbackQuery, state: FSMContext):
+    db = load_db()
+    if not await is_admin(db, call.from_user.id, call.message.chat.id, call.bot):
+        await call.answer("Нет доступа", show_alert=True)
+        return
+    await state.set_state(RepTriggerFSM.del_plus)
+    await state.update_data(chat_id=call.message.chat.id, msg_id=call.message.message_id)
+    group = get_group(db, call.message.chat.id)
+    triggers = group.get("rep_triggers_plus", [])
+    lines = ', '.join(f'<code>{t}</code>' for t in triggers) if triggers else 'Список пуст'
+    await call.message.edit_text(
+        f'{E["trash"]} <b>Удалить триггер повышения</b>\n\nТекущие: {lines}\n\nВведите слово для удаления:',
+        parse_mode=ParseMode.HTML,
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="Отмена", icon_custom_emoji_id="5278578973595427038", callback_data="rep_triggers_plus")]
+        ])
+    )
+    await call.answer()
+
+@router.message(RepTriggerFSM.del_plus)
+async def rep_del_plus_fsm(message: Message, state: FSMContext):
+    data = await state.get_data()
+    chat_id = data.get("chat_id")
+    if not chat_id or message.chat.id != chat_id:
+        return
+    db = load_db()
+    if not await is_admin(db, message.from_user.id, chat_id, message.bot):
+        await state.clear()
+        return
+    await state.clear()
+    word = (message.text or "").strip().lower()
+    group = get_group(db, chat_id)
+    triggers = group.get("rep_triggers_plus", [])
+    if word in triggers:
+        triggers.remove(word)
+        group["rep_triggers_plus"] = triggers
+        save_db(db)
+        await message.reply(f'{E["check"]} Триггер <b>{word}</b> удалён.', parse_mode=ParseMode.HTML)
+    else:
+        await message.reply(f'{E["cross"]} Триггер <b>{word}</b> не найден.', parse_mode=ParseMode.HTML)
+    try:
+        await message.delete()
+    except Exception:
+        pass
+
+@router.callback_query(F.data == "rep_add_minus")
+async def rep_add_minus_cb(call: CallbackQuery, state: FSMContext):
+    db = load_db()
+    if not await is_admin(db, call.from_user.id, call.message.chat.id, call.bot):
+        await call.answer("Нет доступа", show_alert=True)
+        return
+    await state.set_state(RepTriggerFSM.add_minus)
+    await state.update_data(chat_id=call.message.chat.id, msg_id=call.message.message_id)
+    await call.message.edit_text(
+        f'{E["minus"]} <b>Добавить триггер понижения</b>\n\nВведите слово или фразу (например: <code>дизлайк</code>):',
+        parse_mode=ParseMode.HTML,
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="Отмена", icon_custom_emoji_id="5278578973595427038", callback_data="rep_triggers_minus")]
+        ])
+    )
+    await call.answer()
+
+@router.message(RepTriggerFSM.add_minus)
+async def rep_add_minus_fsm(message: Message, state: FSMContext):
+    data = await state.get_data()
+    chat_id = data.get("chat_id")
+    if not chat_id or message.chat.id != chat_id:
+        return
+    db = load_db()
+    if not await is_admin(db, message.from_user.id, chat_id, message.bot):
+        await state.clear()
+        return
+    await state.clear()
+    word = (message.text or "").strip().lower()
+    if not word:
+        await message.reply(f'{E["warn"]} Пустое значение.', parse_mode=ParseMode.HTML)
+        return
+    group = get_group(db, chat_id)
+    triggers = group.get("rep_triggers_minus", [])
+    if word not in triggers:
+        triggers.append(word)
+        group["rep_triggers_minus"] = triggers
+        save_db(db)
+        await message.reply(f'{E["check"]} Триггер <b>{word}</b> добавлен в понижение репутации.', parse_mode=ParseMode.HTML)
+    else:
+        await message.reply(f'{E["info"]} Триггер <b>{word}</b> уже есть в списке.', parse_mode=ParseMode.HTML)
+    try:
+        await message.delete()
+    except Exception:
+        pass
+
+@router.callback_query(F.data == "rep_del_minus")
+async def rep_del_minus_cb(call: CallbackQuery, state: FSMContext):
+    db = load_db()
+    if not await is_admin(db, call.from_user.id, call.message.chat.id, call.bot):
+        await call.answer("Нет доступа", show_alert=True)
+        return
+    await state.set_state(RepTriggerFSM.del_minus)
+    await state.update_data(chat_id=call.message.chat.id, msg_id=call.message.message_id)
+    group = get_group(db, call.message.chat.id)
+    triggers = group.get("rep_triggers_minus", [])
+    lines = ', '.join(f'<code>{t}</code>' for t in triggers) if triggers else 'Список пуст'
+    await call.message.edit_text(
+        f'{E["trash"]} <b>Удалить триггер понижения</b>\n\nТекущие: {lines}\n\nВведите слово для удаления:',
+        parse_mode=ParseMode.HTML,
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="Отмена", icon_custom_emoji_id="5278578973595427038", callback_data="rep_triggers_minus")]
+        ])
+    )
+    await call.answer()
+
+@router.message(RepTriggerFSM.del_minus)
+async def rep_del_minus_fsm(message: Message, state: FSMContext):
+    data = await state.get_data()
+    chat_id = data.get("chat_id")
+    if not chat_id or message.chat.id != chat_id:
+        return
+    db = load_db()
+    if not await is_admin(db, message.from_user.id, chat_id, message.bot):
+        await state.clear()
+        return
+    await state.clear()
+    word = (message.text or "").strip().lower()
+    group = get_group(db, chat_id)
+    triggers = group.get("rep_triggers_minus", [])
+    if word in triggers:
+        triggers.remove(word)
+        group["rep_triggers_minus"] = triggers
+        save_db(db)
+        await message.reply(f'{E["check"]} Триггер <b>{word}</b> удалён.', parse_mode=ParseMode.HTML)
+    else:
+        await message.reply(f'{E["cross"]} Триггер <b>{word}</b> не найден.', parse_mode=ParseMode.HTML)
+    try:
+        await message.delete()
+    except Exception:
+        pass
+
+@router.callback_query(F.data == "rep_set_limit")
+async def rep_set_limit_cb(call: CallbackQuery, state: FSMContext):
+    db = load_db()
+    if not await is_admin(db, call.from_user.id, call.message.chat.id, call.bot):
+        await call.answer("Нет доступа", show_alert=True)
+        return
+    await state.set_state(RepTriggerFSM.set_limit)
+    await state.update_data(chat_id=call.message.chat.id)
+    group = get_group(db, call.message.chat.id)
+    current = group.get("rep_daily_limit", 5)
+    await call.message.edit_text(
+        f'{E["clock"]} <b>Дневной лимит репутации</b>\n\nТекущий лимит: <b>{current}</b> раз в день\n\nВведите новое число (1-100):',
+        parse_mode=ParseMode.HTML,
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="Отмена", icon_custom_emoji_id="5278578973595427038", callback_data="panel_rep")]
+        ])
+    )
+    await call.answer()
+
+@router.message(RepTriggerFSM.set_limit)
+async def rep_set_limit_fsm(message: Message, state: FSMContext):
+    data = await state.get_data()
+    chat_id = data.get("chat_id")
+    if not chat_id or message.chat.id != chat_id:
+        return
+    db = load_db()
+    if not await is_admin(db, message.from_user.id, chat_id, message.bot):
+        await state.clear()
+        return
+    await state.clear()
+    val = (message.text or "").strip()
+    if not val.isdigit() or not (1 <= int(val) <= 100):
+        await message.reply(f'{E["warn"]} Введите число от 1 до 100.', parse_mode=ParseMode.HTML)
+        return
+    group = get_group(db, chat_id)
+    group["rep_daily_limit"] = int(val)
+    save_db(db)
+    await message.reply(f'{E["check"]} Дневной лимит репутации установлен: <b>{val}</b>.', parse_mode=ParseMode.HTML)
+    try:
+        await message.delete()
+    except Exception:
+        pass
+
+@router.callback_query(F.data == "rep_set_cooldown")
+async def rep_set_cooldown_cb(call: CallbackQuery, state: FSMContext):
+    db = load_db()
+    if not await is_admin(db, call.from_user.id, call.message.chat.id, call.bot):
+        await call.answer("Нет доступа", show_alert=True)
+        return
+    await state.set_state(RepTriggerFSM.set_cooldown)
+    await state.update_data(chat_id=call.message.chat.id)
+    group = get_group(db, call.message.chat.id)
+    current = group.get("rep_cooldown_hours", 0.0)
+    await call.message.edit_text(
+        f'{E["clock"]} <b>Кулдаун репутации (часы)</b>\n\nТекущий кулдаун: <b>{current}</b> ч.\n\nВведите число часов (0 = без кулдауна, можно дробное, например 0.5):',
+        parse_mode=ParseMode.HTML,
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="Отмена", icon_custom_emoji_id="5278578973595427038", callback_data="panel_rep")]
+        ])
+    )
+    await call.answer()
+
+@router.message(RepTriggerFSM.set_cooldown)
+async def rep_set_cooldown_fsm(message: Message, state: FSMContext):
+    data = await state.get_data()
+    chat_id = data.get("chat_id")
+    if not chat_id or message.chat.id != chat_id:
+        return
+    db = load_db()
+    if not await is_admin(db, message.from_user.id, chat_id, message.bot):
+        await state.clear()
+        return
+    await state.clear()
+    val_str = (message.text or "").strip().replace(',', '.')
+    try:
+        val = float(val_str)
+        if val < 0:
+            raise ValueError
+    except ValueError:
+        await message.reply(f'{E["warn"]} Введите число >= 0 (например: 1, 0.5, 24).', parse_mode=ParseMode.HTML)
+        return
+    group = get_group(db, chat_id)
+    group["rep_cooldown_hours"] = val
+    save_db(db)
+    label = f'{val} ч.' if val > 0 else 'отключён'
+    await message.reply(f'{E["check"]} Кулдаун репутации: <b>{label}</b>.', parse_mode=ParseMode.HTML)
+    try:
+        await message.delete()
+    except Exception:
+        pass
+
 @router.callback_query(F.data == "panel_stats")
 async def panel_stats_cb(call: CallbackQuery):
     db = load_db()
+    if not await is_staff(db, call.from_user.id, call.message.chat.id, call.bot):
+        await call.answer("Нет доступа", show_alert=True)
+        return
     chat_id = call.message.chat.id
     group = get_group(db, chat_id)
     check_stats_date(group)
@@ -2786,7 +3129,7 @@ async def rules_fsm_text(message: Message, state: FSMContext):
     if not chat_id or message.chat.id != chat_id:
         return
     db = load_db()
-    if not is_admin(db, message.from_user.id, chat_id):
+    if not await is_admin(db, message.from_user.id, chat_id, message.bot):
         await state.clear()
         return
     group = get_group(db, chat_id)
@@ -2802,6 +3145,9 @@ async def rules_fsm_text(message: Message, state: FSMContext):
 @router.callback_query(F.data == "panel_punish")
 async def panel_punish_cb(call: CallbackQuery):
     db = load_db()
+    if not await is_staff(db, call.from_user.id, call.message.chat.id, call.bot):
+        await call.answer("Нет доступа", show_alert=True)
+        return
     chat_id = call.message.chat.id
     banned_count = sum(1 for k, v in db["users"].items() if v.get("chat_id") == chat_id and v.get("banned"))
     muted_count = sum(1 for k, v in db["users"].items() if v.get("chat_id") == chat_id and v.get("muted_until"))
@@ -2823,7 +3169,7 @@ async def cmd_settings(message: Message):
     if not await check_access_and_reply(message):
         return
     db = load_db()
-    if not is_admin(db, message.from_user.id, message.chat.id):
+    if not await is_admin(db, message.from_user.id, message.chat.id, message.bot):
         await message.reply(f'{E["cross"]} <b>Только администраторы.</b>', parse_mode=ParseMode.HTML)
         return
     group = get_group(db, message.chat.id)
@@ -2834,19 +3180,23 @@ async def cmd_settings(message: Message):
     captcha = settings.get("captcha", False)
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
-            text=(f'{E["check"]} Приветствие' if welcome else f'{E["cross"]} Приветствие'),
+            text="Приветствие",
+            icon_custom_emoji_id=E_IDS["check"] if welcome else E_IDS["cross"],
             callback_data="toggle_welcome"
         )],
         [InlineKeyboardButton(
-            text=(f'{E["check"]} Антифлуд' if antiflood else f'{E["cross"]} Антифлуд'),
+            text="Антифлуд",
+            icon_custom_emoji_id=E_IDS["check"] if antiflood else E_IDS["cross"],
             callback_data="toggle_antiflood"
         )],
         [InlineKeyboardButton(
-            text=(f'{E["check"]} Антиссылки' if antilinks else f'{E["cross"]} Антиссылки'),
+            text="Антиссылки",
+            icon_custom_emoji_id=E_IDS["check"] if antilinks else E_IDS["cross"],
             callback_data="toggle_antilinks"
         )],
         [InlineKeyboardButton(
-            text=(f'{E["check"]} Капча' if captcha else f'{E["cross"]} Капча'),
+            text="Капча",
+            icon_custom_emoji_id=E_IDS["check"] if captcha else E_IDS["cross"],
             callback_data="toggle_captcha"
         )],
         [InlineKeyboardButton(text="Закрыть", icon_custom_emoji_id="5278578973595427038", callback_data="close_msg")],
@@ -2860,6 +3210,9 @@ async def cmd_settings(message: Message):
 @router.callback_query(F.data == "toggle_captcha")
 async def toggle_captcha_cb(call: CallbackQuery):
     db = load_db()
+    if not await is_admin(db, call.from_user.id, call.message.chat.id, call.bot):
+        await call.answer("Нет доступа", show_alert=True)
+        return
     group = get_group(db, call.message.chat.id)
     group["settings"]["captcha"] = not group["settings"].get("captcha", False)
     save_db(db)
@@ -2870,7 +3223,7 @@ async def cmd_set_rules(message: Message):
     if not await check_access_and_reply(message):
         return
     db = load_db()
-    if not is_admin(db, message.from_user.id, message.chat.id):
+    if not await is_admin(db, message.from_user.id, message.chat.id, message.bot):
         await message.reply(f'{E["cross"]} <b>Только администраторы.</b>', parse_mode=ParseMode.HTML)
         return
     parts = message.text.split(maxsplit=1)
@@ -2887,7 +3240,7 @@ async def cmd_purge(message: Message):
     if not await check_access_and_reply(message):
         return
     db = load_db()
-    if not is_admin(db, message.from_user.id, message.chat.id):
+    if not await is_admin(db, message.from_user.id, message.chat.id, message.bot):
         await message.reply(f'{E["cross"]} <b>Только администраторы.</b>', parse_mode=ParseMode.HTML)
         return
     parts = message.text.split()
@@ -3177,7 +3530,7 @@ async def cmd_group_broadcast(message: Message):
     if not await check_access_and_reply(message):
         return
     db = load_db()
-    if not is_admin(db, message.from_user.id, message.chat.id):
+    if not await is_admin(db, message.from_user.id, message.chat.id, message.bot):
         await message.reply(f'{E["cross"]} Только администраторы.', parse_mode=ParseMode.HTML)
         return
     parts = message.text.split(maxsplit=1)
@@ -3301,7 +3654,7 @@ async def cmd_freeze(message: Message):
     if not await check_access_and_reply(message):
         return
     db = load_db()
-    if not is_staff(db, message.from_user.id, message.chat.id):
+    if not await is_staff(db, message.from_user.id, message.chat.id, message.bot):
         await message.reply(f'{E["cross"]} <b>Только персонал.</b>', parse_mode=ParseMode.HTML)
         return
     target = None
@@ -3406,7 +3759,7 @@ async def cmd_censorship_cmd(message: Message):
     if not await check_access_and_reply(message):
         return
     db = load_db()
-    if not is_admin(db, message.from_user.id, message.chat.id):
+    if not await is_admin(db, message.from_user.id, message.chat.id, message.bot):
         await message.reply(f'{E["cross"]} <b>Только администраторы.</b>', parse_mode=ParseMode.HTML)
         return
     parts = message.text.split(maxsplit=2)
@@ -3473,7 +3826,7 @@ async def cmd_announce(message: Message):
     if not await check_access_and_reply(message):
         return
     db = load_db()
-    if not is_staff(db, message.from_user.id, message.chat.id):
+    if not await is_staff(db, message.from_user.id, message.chat.id, message.bot):
         await message.reply(f'{E["cross"]} <b>Только персонал может делать объявления.</b>', parse_mode=ParseMode.HTML)
         return
     parts = message.text.split(maxsplit=1)
@@ -3519,7 +3872,7 @@ async def cmd_rep_give(message: Message):
     if not await check_access_and_reply(message):
         return
     db = load_db()
-    if not is_staff(db, message.from_user.id, message.chat.id):
+    if not await is_staff(db, message.from_user.id, message.chat.id, message.bot):
         await message.reply(f'{E["cross"]} <b>Только персонал.</b>', parse_mode=ParseMode.HTML)
         return
     if not message.reply_to_message:
@@ -3645,7 +3998,7 @@ async def cmd_add_title(message: Message):
     if not await check_access_and_reply(message):
         return
     db = load_db()
-    if not is_admin(db, message.from_user.id, message.chat.id):
+    if not await is_admin(db, message.from_user.id, message.chat.id, message.bot):
         await message.reply(f'{E["cross"]} <b>Только администраторы.</b>', parse_mode=ParseMode.HTML)
         return
     parts = message.text.split(maxsplit=3)
@@ -3672,7 +4025,7 @@ async def cmd_del_title(message: Message):
     if not await check_access_and_reply(message):
         return
     db = load_db()
-    if not is_admin(db, message.from_user.id, message.chat.id):
+    if not await is_admin(db, message.from_user.id, message.chat.id, message.bot):
         await message.reply(f'{E["cross"]} <b>Только администраторы.</b>', parse_mode=ParseMode.HTML)
         return
     parts = message.text.split()
@@ -3698,7 +4051,7 @@ async def cmd_clear_titles(message: Message):
     if not await check_access_and_reply(message):
         return
     db = load_db()
-    if not is_admin(db, message.from_user.id, message.chat.id):
+    if not await is_admin(db, message.from_user.id, message.chat.id, message.bot):
         await message.reply(f'{E["cross"]} <b>Только администраторы.</b>', parse_mode=ParseMode.HTML)
         return
     group = get_group(db, message.chat.id)
@@ -3865,14 +4218,20 @@ async def _process_group_message(message: Message):
     if str(chat_id) not in db.get("groups", {}):
         return
     warned = db.get("warned_owners", {})
-    try:
-        admins = await message.bot.get_chat_administrators(chat_id)
-        for a in admins:
-            if a.status == ChatMemberStatus.CREATOR:
-                if str(a.user.id) in warned and warned[str(a.user.id)] >= 3:
-                    return
-    except:
-        pass
+    if warned:
+        try:
+            admin_ids = await get_chat_admin_ids(message.bot, chat_id)
+            for aid in admin_ids:
+                if str(aid) in warned and warned[str(aid)] >= 3:
+                    # Проверяем что это именно создатель
+                    try:
+                        mbr = await message.bot.get_chat_member(chat_id, aid)
+                        if mbr.status == ChatMemberStatus.CREATOR:
+                            return
+                    except Exception:
+                        pass
+        except Exception:
+            pass
     user = message.from_user
     uid = user.id
     group = get_group(db, chat_id)
@@ -3968,7 +4327,7 @@ async def _process_group_message(message: Message):
                 save_db(db)
                 return
 
-    if not is_staff(db, uid, chat_id):
+    if not await is_staff(db, uid, chat_id, message.bot):
         msg_text = message.text or message.caption or ""
 
         # ── Антиспам (одинаковые сообщения / стикеры) ──
@@ -4335,9 +4694,9 @@ async def cmd_compare(message: Message):
     m2 = "замучен" if u2.get("muted_until") else "нет"
 
     def cmp_bar(v1, v2, higher_better=True):
-        if v1 == v2: return "⏺ <i>Ничья</i>"
+        if v1 == v2: return f'{E["info"]} <i>Ничья</i>'
         win = v1 > v2 if higher_better else v1 < v2
-        return f"⬅️ <b>Победа {n1}</b>" if win else f"➡️ <b>Победа {n2}</b>"
+        return f'{E["check"]} <b>Победа {n1}</b>' if win else f'{E["check"]} <b>Победа {n2}</b>'
 
     await message.reply(
         f'{E["chart"]} <b>Сравнение: {n1} VS {n2}</b>\n\n'
@@ -4387,7 +4746,7 @@ async def cmd_zero_rep(message: Message):
     if not await check_access_and_reply(message):
         return
     db = load_db()
-    if not is_admin(db, message.from_user.id, message.chat.id):
+    if not await is_admin(db, message.from_user.id, message.chat.id, message.bot):
         await message.reply(f'{E["cross"]} <b>Только администраторы.</b>', parse_mode=ParseMode.HTML)
         return
     if message.reply_to_message:
@@ -4430,7 +4789,7 @@ async def cmd_del(message: Message):
     if not await check_access_and_reply(message):
         return
     db = load_db()
-    if not is_staff(db, message.from_user.id, message.chat.id):
+    if not await is_staff(db, message.from_user.id, message.chat.id, message.bot):
         await message.reply(f'{E["cross"]} <b>Только персонал.</b>', parse_mode=ParseMode.HTML)
         return
     if not message.reply_to_message:
@@ -4453,7 +4812,7 @@ async def cmd_media_toggle(message: Message):
     if not await check_access_and_reply(message):
         return
     db = load_db()
-    if not is_admin(db, message.from_user.id, message.chat.id):
+    if not await is_admin(db, message.from_user.id, message.chat.id, message.bot):
         await message.reply(f'{E["cross"]} <b>Только администраторы.</b>', parse_mode=ParseMode.HTML)
         return
     enable = message.text.split()[-1].lower() == 'вкл'
@@ -4489,7 +4848,7 @@ async def cmd_readonly_on(message: Message):
     if not await check_access_and_reply(message):
         return
     db = load_db()
-    if not is_admin(db, message.from_user.id, message.chat.id):
+    if not await is_admin(db, message.from_user.id, message.chat.id, message.bot):
         await message.reply(f'{E["cross"]} <b>Только администраторы.</b>', parse_mode=ParseMode.HTML)
         return
     try:
@@ -4509,7 +4868,7 @@ async def cmd_readonly_off(message: Message):
     if not await check_access_and_reply(message):
         return
     db = load_db()
-    if not is_admin(db, message.from_user.id, message.chat.id):
+    if not await is_admin(db, message.from_user.id, message.chat.id, message.bot):
         await message.reply(f'{E["cross"]} <b>Только администраторы.</b>', parse_mode=ParseMode.HTML)
         return
     try:
@@ -4543,7 +4902,7 @@ async def cmd_slowmode(message: Message):
     if not await check_access_and_reply(message):
         return
     db = load_db()
-    if not is_admin(db, message.from_user.id, message.chat.id):
+    if not await is_admin(db, message.from_user.id, message.chat.id, message.bot):
         await message.reply(f'{E["cross"]} <b>Только администраторы.</b>', parse_mode=ParseMode.HTML)
         return
     parts = message.text.split()
@@ -4572,7 +4931,7 @@ async def cmd_vote(message: Message):
     if not await check_access_and_reply(message):
         return
     db = load_db()
-    if not is_staff(db, message.from_user.id, message.chat.id):
+    if not await is_staff(db, message.from_user.id, message.chat.id, message.bot):
         await message.reply(f'{E["cross"]} <b>Только персонал.</b>', parse_mode=ParseMode.HTML)
         return
     parts = message.text.split(maxsplit=1)
@@ -4627,7 +4986,7 @@ async def vote_cb(call: CallbackQuery):
 @router.callback_query(F.data == 'vote_end')
 async def vote_end_cb(call: CallbackQuery):
     db = load_db()
-    if not is_staff(db, call.from_user.id, call.message.chat.id):
+    if not await is_staff(db, call.from_user.id, call.message.chat.id, call.bot):
         await call.answer("Только персонал может завершить голосование.", show_alert=True)
         return
     msg_key = f"{call.message.chat.id}_{call.message.message_id}"
@@ -4641,6 +5000,12 @@ async def vote_end_cb(call: CallbackQuery):
     )
     await call.answer()
 
+
+async def _periodic_save():
+    """Периодически сохраняет БД каждые 30 секунд если есть несохранённые изменения."""
+    while True:
+        await asyncio.sleep(30)
+        force_save_db()
 
 async def main():
     global _log_bot
@@ -4656,7 +5021,11 @@ async def main():
     dp = Dispatcher(storage=storage)
     dp.message.outer_middleware(GroupMessageMiddleware())
     dp.include_router(router)
-    await dp.start_polling(bot, allowed_updates=["message", "callback_query", "my_chat_member", "chat_member"])
+    asyncio.create_task(_periodic_save())
+    try:
+        await dp.start_polling(bot, allowed_updates=["message", "callback_query", "my_chat_member", "chat_member"])
+    finally:
+        force_save_db()
 
 if __name__ == "__main__":
     asyncio.run(main())
