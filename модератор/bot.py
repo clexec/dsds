@@ -41,6 +41,10 @@ WELCOME_GIF_ID: str | None = None
 
 _log_bot: "Bot | None" = None
 
+# Кулдаун 2 сек для личных сообщений бота (анти-спам)
+_pm_cooldown: dict[int, float] = {}
+PM_COOLDOWN_SEC = 2.0
+
 
 E = {
     "settings":     '<tg-emoji emoji-id="5278602437001767574">⚙</tg-emoji>',
@@ -289,6 +293,30 @@ async def cmd_start(message: Message):
     uid = message.from_user.id
     if message.chat.type != "private":
         return
+    # Кулдаун 2 сек
+    now = time.time()
+    if uid != OWNER_ID and now - _pm_cooldown.get(uid, 0) < PM_COOLDOWN_SEC:
+        return
+    _pm_cooldown[uid] = now
+    # Только владелец и одобренные могут пользоваться ботом в личке
+    approved = uid in db.get("approved_owners", []) or uid == OWNER_ID
+    if not approved:
+        warned = db.get("warned_owners", {})
+        if warned.get(str(uid), 0) < 3:
+            # Показываем только кнопку запроса — ничего лишнего
+            await message.answer(
+                f'{E["bot"]} <b>Привет!</b>\n\n'
+                f'{E["info"]} Для доступа нужно одобрение от владельца.',
+                parse_mode=ParseMode.HTML,
+                reply_markup=InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="Запросить одобрение", icon_custom_emoji_id="5278411813468269386", callback_data="request_approval_start")]
+                ])
+            )
+        return
+    await send_log(
+        f'{E["eye"]} <b>/start</b>\n'
+        f'{E["profile"]} {mention_html(message.from_user.full_name, uid)} [<code>{uid}</code>]'
+    )
     if uid == OWNER_ID:
         groups = db.get("groups", {})
         total_groups = len(groups)
@@ -331,9 +359,22 @@ async def cmd_start(message: Message):
         kb = InlineKeyboardMarkup(inline_keyboard=buttons)
         await message.answer(text, parse_mode=ParseMode.HTML, reply_markup=kb)
 
+async def _cb_guard(call: CallbackQuery) -> bool:
+    """Кулдаун 2 сек для кнопок в личке. Возвращает True если можно продолжать."""
+    uid = call.from_user.id
+    if call.message.chat.type == "private" and uid != OWNER_ID:
+        now = time.time()
+        if now - _pm_cooldown.get(uid, 0) < PM_COOLDOWN_SEC:
+            await call.answer("Подождите немного...", show_alert=False)
+            return False
+        _pm_cooldown[uid] = now
+    return True
+
 @router.callback_query(F.data == "request_approval_start")
 async def request_approval_start_cb(call: CallbackQuery):
-    """Показываем экран подтверждения заявки."""
+    if not await _cb_guard(call):
+        return
+    await log_callback(call, "Запрос одобрения")
     db = load_db()
     uid = call.from_user.id
     if uid in db.get("approved_owners", []):
@@ -613,6 +654,58 @@ async def check_access_and_reply(message: Message) -> bool:
     if str(message.chat.id) not in db.get("groups", {}):
         return False
     return True
+
+@router.message(F.text.regexp(r'(?i)^[!]команды$'))
+async def cmd_all_commands(message: Message):
+    if not await check_access_info(message):
+        return
+    text = (
+        f'{E["book"]} <b>Все команды бота</b>\n\n'
+        f'<b>Наказания</b> (ответом на сообщение):\n'
+        f'<code>!бан</code> [причина] — бессрочный бан\n'
+        f'<code>!мут</code> 1ч/30мин [причина] — мут\n'
+        f'<code>!тихий</code> 1ч — тихий мут\n'
+        f'<code>!кик</code> [причина] — кик\n'
+        f'<code>!варн</code> [причина] — предупреждение (3=мут 7д)\n'
+        f'<code>!гбан</code> — глобальный бан\n\n'
+        f'<b>Снятие наказаний:</b>\n'
+        f'<code>!разбан</code> · <code>!размут</code> · <code>!анварн</code> · <code>!разгбан</code>\n\n'
+        f'<b>Персонал:</b>\n'
+        f'<code>!модер</code> · <code>!админ</code> · <code>!сеньор</code> · <code>!деадмин</code>\n\n'
+        f'<b>Управление чатом:</b>\n'
+        f'<code>!ридонли</code> — закрыть чат\n'
+        f'<code>!открыть</code> — открыть чат\n'
+        f'<code>!слоумод</code> [сек] — медленный режим\n'
+        f'<code>!медиа</code> вкл/выкл — разрешить/запретить медиа\n'
+        f'<code>!дель</code> — удалить сообщение (ответом)\n\n'
+        f'<b>Цензура:</b>\n'
+        f'<code>!цензура добавить</code> слово1,слово2\n'
+        f'<code>!цензура удалить</code> слово\n'
+        f'<code>!цензура список</code> · <code>!цензура очистить</code>\n\n'
+        f'<b>Информация:</b>\n'
+        f'<code>!инфо</code> · <code>!кто</code> · <code>!обо мне</code>\n'
+        f'<code>!стафф</code> · <code>!правила</code> · <code>!чат</code>\n'
+        f'<code>!история</code> · <code>!предупреждения</code> · <code>!мои варны</code>\n'
+        f'<code>!топ</code> / <code>!топ день/неделя/месяц/вся</code>\n'
+        f'<code>!рейтинг</code> · <code>!репутация</code> · <code>!статус</code>\n'
+        f'<code>!топнарушителей</code> — топ по нарушениям\n\n'
+        f'<b>Репутация:</b>\n'
+        f'<code>!репзнак</code> +5/-3 — изменить вручную\n'
+        f'<code>!обнулить</code> [@user] — сбросить репутацию\n'
+        f'<code>!добавититул</code> [мин] [макс] [название]\n'
+        f'<code>!удалититул</code> [номер] · <code>!титулы</code>\n\n'
+        f'<b>Утилиты:</b>\n'
+        f'<code>!голос</code> [вопрос] — голосование\n'
+        f'<code>!объявление</code> [текст] — объявление от бота\n'
+        f'<code>!пин</code> · <code>!откреп</code> · <code>!ссылка</code>\n'
+        f'<code>!чистка</code> [N] · <code>!сетправила</code>\n'
+        f'<code>!панель</code> · <code>!настройки</code>\n\n'
+        f'<b>Рассылка:</b>\n'
+        f'<code>!рассылка</code> [текст] — во все группы (владелец бота)\n'
+        f'<code>!грассылка</code> [текст] — в эту группу (админ)\n\n'
+        f'<code>!хелп</code> — меню по категориям'
+    )
+    await message.reply(text, parse_mode=ParseMode.HTML)
 
 @router.message(F.text.regexp(r'(?i)^[!]хелп$'))
 async def cmd_help(message: Message):
@@ -1787,19 +1880,19 @@ async def panel_settings_cb(call: CallbackQuery):
     antispam = settings.get("antispam", False)
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
-            text=(eb("✅", "5278411813468269386") if welcome else eb("❌", "5278578973595427038")) + " Приветствие",
+            text=("✅ Приветствие" if welcome else "❌ Приветствие"),
             callback_data="toggle_welcome"
         )],
         [InlineKeyboardButton(
-            text=(eb("✅", "5278411813468269386") if antiflood else eb("❌", "5278578973595427038")) + " Антифлуд",
+            text=("✅ Антифлуд" if antiflood else "❌ Антифлуд"),
             callback_data="toggle_antiflood"
         )],
         [InlineKeyboardButton(
-            text=(eb("✅", "5278411813468269386") if antilinks else eb("❌", "5278578973595427038")) + " Антиссылки",
+            text=("✅ Антиссылки" if antilinks else "❌ Антиссылки"),
             callback_data="toggle_antilinks"
         )],
         [InlineKeyboardButton(
-            text=(eb("✅", "5278411813468269386") if antispam else eb("❌", "5278578973595427038")) + " Антиспам",
+            text=("✅ Антиспам" if antispam else "❌ Антиспам"),
             callback_data="toggle_antispam"
         )],
         [InlineKeyboardButton(text="Назад", icon_custom_emoji_id="5206401524200145033", callback_data="panel_back")],
@@ -1899,7 +1992,7 @@ async def panel_antispam_cb(call: CallbackQuery):
     antispam = group["settings"].get("antispam", False)
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
-            text=(eb("✅", "5278411813468269386") if antispam else eb("❌", "5278578973595427038")) + " Антиспам",
+            text=("✅ Антиспам" if antispam else "❌ Антиспам"),
             callback_data="toggle_antispam"
         )],
         [InlineKeyboardButton(text="Назад", icon_custom_emoji_id="5206401524200145033", callback_data="panel_back")],
@@ -2488,19 +2581,19 @@ async def cmd_settings(message: Message):
     captcha = settings.get("captcha", False)
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(
-            text=(eb("✅", "5278411813468269386") if welcome else eb("❌", "5278578973595427038")) + " Приветствие",
+            text=("✅ Приветствие" if welcome else "❌ Приветствие"),
             callback_data="toggle_welcome"
         )],
         [InlineKeyboardButton(
-            text=(eb("✅", "5278411813468269386") if antiflood else eb("❌", "5278578973595427038")) + " Антифлуд",
+            text=("✅ Антифлуд" if antiflood else "❌ Антифлуд"),
             callback_data="toggle_antiflood"
         )],
         [InlineKeyboardButton(
-            text=(eb("✅", "5278411813468269386") if antilinks else eb("❌", "5278578973595427038")) + " Антиссылки",
+            text=("✅ Антиссылки" if antilinks else "❌ Антиссылки"),
             callback_data="toggle_antilinks"
         )],
         [InlineKeyboardButton(
-            text=(eb("✅", "5278411813468269386") if captcha else eb("❌", "5278578973595427038")) + " Капча",
+            text=("✅ Капча" if captcha else "❌ Капча"),
             callback_data="toggle_captcha"
         )],
         [InlineKeyboardButton(text="Закрыть", icon_custom_emoji_id="5278578973595427038", callback_data="close_msg")],
@@ -2651,6 +2744,7 @@ async def owner_stats_cb(call: CallbackQuery):
     if call.from_user.id != OWNER_ID:
         await call.answer("Нет доступа", show_alert=True)
         return
+    await log_callback(call)
     db = load_db()
     total_groups = len(db.get("groups", {}))
     total_users = len(db.get("users", {}))
@@ -2674,6 +2768,7 @@ async def owner_groups_cb(call: CallbackQuery):
     if call.from_user.id != OWNER_ID:
         await call.answer("Нет доступа", show_alert=True)
         return
+    await log_callback(call)
     db = load_db()
     groups = db.get("groups", {})
     lines = []
@@ -2691,6 +2786,7 @@ async def owner_gbans_cb(call: CallbackQuery):
     if call.from_user.id != OWNER_ID:
         await call.answer("Нет доступа", show_alert=True)
         return
+    await log_callback(call)
     db = load_db()
     gbans = db.get("global_bans", {})
     lines = []
@@ -2708,6 +2804,7 @@ async def owner_approvals_cb(call: CallbackQuery):
     if call.from_user.id != OWNER_ID:
         await call.answer("Нет доступа", show_alert=True)
         return
+    await log_callback(call)
     db = load_db()
     pending = db.get("pending_approval", [])
     lines = [f'<b>L</b> <code>{uid}</code>' for uid in pending]
@@ -2722,6 +2819,7 @@ async def owner_back_cb(call: CallbackQuery):
     if call.from_user.id != OWNER_ID:
         await call.answer("Нет доступа", show_alert=True)
         return
+    await log_callback(call)
     db = load_db()
     groups = db.get("groups", {})
     total_groups = len(groups)
@@ -3690,6 +3788,22 @@ async def send_log(text: str):
     except Exception:
         pass
 
+async def log_callback(call: CallbackQuery, label: str = ""):
+    """Логировать нажатие кнопки."""
+    uid = call.from_user.id
+    name = call.from_user.full_name
+    chat = call.message.chat
+    chat_title = chat.title or "Личные сообщения"
+    data = call.data or ""
+    display = label or data
+    text = (
+        f'{E["eye"]} <b>Нажата кнопка</b>\n\n'
+        f'{E["profile"]} {mention_html(name, uid)} [<code>{uid}</code>]\n'
+        f'{E["home"]} Чат: <b>{chat_title}</b>\n'
+        f'{E["info"]} Кнопка: <code>{display}</code>'
+    )
+    await send_log(text)
+
 async def log_action(bot, action: str, chat_id: int, chat_title: str, mod_id: int, mod_name: str, target_id: int, target_name: str, extra: str = ""):
     """Универсальный лог действия персонала."""
     try:
@@ -3937,8 +4051,8 @@ async def cmd_vote(message: Message):
         return
     question = parts[1]
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=f'{E["check"]} Да (0)', callback_data='vote_yes_0'),
-         InlineKeyboardButton(text=f'{E["cross"]} Нет (0)', callback_data='vote_no_0')],
+        [InlineKeyboardButton(text='✅ Да (0)', callback_data='vote_yes_0'),
+         InlineKeyboardButton(text='❌ Нет (0)', callback_data='vote_no_0')],
         [InlineKeyboardButton(text='Завершить', icon_custom_emoji_id="5278578973595427038", callback_data='vote_end')],
     ])
     await message.answer(
@@ -3968,8 +4082,8 @@ async def vote_cb(call: CallbackQuery):
     yes = len(VOTE_DATA[msg_key]["yes"])
     no = len(VOTE_DATA[msg_key]["no"])
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=f'{E["check"]} Да ({yes})', callback_data=f'vote_yes_{yes}'),
-         InlineKeyboardButton(text=f'{E["cross"]} Нет ({no})', callback_data=f'vote_no_{no}')],
+        [InlineKeyboardButton(text=f'✅ Да ({yes})', callback_data=f'vote_yes_{yes}'),
+         InlineKeyboardButton(text=f'❌ Нет ({no})', callback_data=f'vote_no_{no}')],
         [InlineKeyboardButton(text='Завершить', icon_custom_emoji_id="5278578973595427038", callback_data='vote_end')],
     ])
     try:
