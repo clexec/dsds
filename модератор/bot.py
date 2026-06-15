@@ -31,12 +31,15 @@ class RulesFSM(StatesGroup):
     waiting_text = State()
 
 BOT_TOKEN = "8375872283:AAFjMtiel1z6-5KZ62f5l1IptmxAXjHTOrk"
+LOG_BOT_TOKEN = "8204350438:AAH4LLSiuiH2NjefS5hYFYsvpvwcvwEoD9U"
 OWNER_ID = 8249995740
 OWNER_USERNAME = "seyats"
 CHANNEL = "@seyxts"
 DB_FILE = "db.json"
 WELCOME_GIF = "emoji.mp4"
 WELCOME_GIF_ID: str | None = None
+
+_log_bot: "Bot | None" = None
 
 
 E = {
@@ -318,7 +321,6 @@ async def cmd_start(message: Message):
             access_line = f'{E["warn"]} <b>Не одобрен</b>'
         text = (
             f'{E["bot"]} <b>Привет, {name}!</b>\n\n'
-            f'Я — модератор групп. Добавь меня в администраторы своей группы и я буду следить за порядком.\n\n'
             f'{E["profile"]} Пользователь: <b>{name}</b> [<code>{uid}</code>]\n'
             f'{E["shield"]} Уровень доступа: {access_line}\n\n'
             f'{E["info"]} Чтобы добавить бота в группу — нужно одобрение от владельца.'
@@ -428,7 +430,6 @@ async def back_to_start_cb(call: CallbackQuery):
         access_line = f'{E["warn"]} <b>Не одобрен</b>'
     text = (
         f'{E["bot"]} <b>Привет, {name}!</b>\n\n'
-        f'Я — модератор групп. Добавь меня в администраторы своей группы и я буду следить за порядком.\n\n'
         f'{E["profile"]} Пользователь: <b>{name}</b> [<code>{uid}</code>]\n'
         f'{E["shield"]} Уровень доступа: {access_line}\n\n'
         f'{E["info"]} Чтобы добавить бота в группу — нужно одобрение от владельца.'
@@ -1148,6 +1149,8 @@ async def cmd_warn(message: Message):
         parse_mode=ParseMode.HTML,
         reply_markup=kb
     )
+    await log_action(message.bot, f"ВАРН {warns}/3", message.chat.id, message.chat.title or "",
+                     message.from_user.id, mod_name, target.id, target_name, f"причина: {reason}")
     if warns >= 3:
         try:
             until = datetime.now() + timedelta(days=7)
@@ -1284,8 +1287,8 @@ async def cmd_ban(message: Message):
         parse_mode=ParseMode.HTML,
         reply_markup=kb
     )
-
-@router.callback_query(F.data.startswith("unban_"))
+    await log_action(message.bot, "БАН", message.chat.id, message.chat.title or "",
+                     message.from_user.id, mod_name, target.id, target.full_name, f"причина: {reason}")
 async def unban_cb(call: CallbackQuery):
     db = load_db()
     if not is_staff(db, call.from_user.id, call.message.chat.id):
@@ -1393,8 +1396,9 @@ async def cmd_mute(message: Message):
         parse_mode=ParseMode.HTML,
         reply_markup=kb
     )
-
-@router.callback_query(F.data.startswith("unmute_"))
+    await log_action(message.bot, "МУТ", message.chat.id, message.chat.title or "",
+                     message.from_user.id, mod_name, target.id, target.full_name,
+                     f"срок: {duration_label}, причина: {reason_text}")
 async def unmute_cb(call: CallbackQuery):
     db = load_db()
     if not is_staff(db, call.from_user.id, call.message.chat.id):
@@ -1495,8 +1499,8 @@ async def cmd_kick(message: Message):
         f'<blockquote>Причина: {reason}\nМодератор: {mention_html(mod_name, message.from_user.id)}</blockquote>',
         parse_mode=ParseMode.HTML
     )
-
-@router.message(F.text.regexp(r'(?i)^[!]репорт$'))
+    await log_action(message.bot, "КИК", message.chat.id, message.chat.title or "",
+                     message.from_user.id, mod_name, target.id, target.full_name, f"причина: {reason}")
 async def cmd_report(message: Message):
     if not await check_access_and_reply(message):
         return
@@ -3676,7 +3680,328 @@ async def cmd_clear(message: Message):
     except Exception:
         pass
 
+async def send_log(text: str):
+    """Отправить лог в бот-логгер владельцу."""
+    global _log_bot
+    if _log_bot is None:
+        return
+    try:
+        await _log_bot.send_message(OWNER_ID, text, parse_mode=ParseMode.HTML, disable_web_page_preview=True)
+    except Exception:
+        pass
+
+async def log_action(bot, action: str, chat_id: int, chat_title: str, mod_id: int, mod_name: str, target_id: int, target_name: str, extra: str = ""):
+    """Универсальный лог действия персонала."""
+    try:
+        chat = await bot.get_chat(chat_id)
+        invite = f"https://t.me/{chat.username}" if chat.username else f"tg://openmessage?chat_id={str(chat_id).replace('-100', '')}"
+    except Exception:
+        invite = str(chat_id)
+    text = (
+        f'{E["bell"]} <b>Лог действия</b>\n\n'
+        f'{E["home"]} Группа: <a href="{invite}">{chat_title}</a>\n'
+        f'{E["shield"]} Модератор: {mention_html(mod_name, mod_id)} [<code>{mod_id}</code>]\n'
+        f'{E["profile"]} Цель: {mention_html(target_name, target_id)} [<code>{target_id}</code>]\n'
+        f'{E["warn"]} Действие: <b>{action}</b>'
+    )
+    if extra:
+        text += f'\n{E["info"]} Детали: {extra}'
+    await send_log(text)
+
+
+# ─── Топ нарушителей ──────────────────────────────────────────────────────────
+
+@router.message(F.text.regexp(r'(?i)^[!]топнарушителей$'))
+async def cmd_top_violators(message: Message):
+    if not await check_access_info(message):
+        return
+    db = load_db()
+    chat_id = message.chat.id
+    users_in_chat = [v for v in db["users"].values() if v.get("chat_id") == chat_id]
+    sorted_v = sorted(users_in_chat, key=lambda x: x.get("violations", 0), reverse=True)[:10]
+    if not sorted_v or sorted_v[0].get("violations", 0) == 0:
+        await message.reply(f'{E["check"]} Нарушителей нет!', parse_mode=ParseMode.HTML)
+        return
+    lines = []
+    for i, u in enumerate(sorted_v, 1):
+        v = u.get("violations", 0)
+        if v == 0:
+            break
+        w = u.get("warns", 0)
+        name = u.get("first_name") or u.get("username") or f'[{u["user_id"]}]'
+        lines.append(f'<b>{i}.</b> {mention_html(name, u["user_id"])} — <b>{v}</b> нарушений, варнов: <b>{w}/3</b>')
+    await message.reply(
+        f'{E["warn"]} <b>Топ нарушителей:</b>\n\n' + '\n'.join(lines),
+        parse_mode=ParseMode.HTML
+    )
+
+
+# ─── Обнулить репутацию ───────────────────────────────────────────────────────
+
+@router.message(F.text.regexp(r'(?i)^[!]обнулить'))
+async def cmd_zero_rep(message: Message):
+    if not await check_access_and_reply(message):
+        return
+    db = load_db()
+    if not is_admin(db, message.from_user.id, message.chat.id):
+        await message.reply(f'{E["cross"]} <b>Только администраторы.</b>', parse_mode=ParseMode.HTML)
+        return
+    if message.reply_to_message:
+        target = message.reply_to_message.from_user
+    else:
+        parts = message.text.split()
+        if len(parts) < 2:
+            await message.reply(f'{E["warn"]} Ответьте на сообщение или укажите @username.', parse_mode=ParseMode.HTML)
+            return
+        arg = parts[1].lstrip('@')
+        target = None
+        for u in db["users"].values():
+            if (u.get("username") or "").lower() == arg.lower() and u.get("chat_id") == message.chat.id:
+                class FU:
+                    id = u["user_id"]
+                    full_name = u.get("first_name") or arg
+                target = FU()
+                break
+        if not target:
+            await message.reply(f'{E["cross"]} Пользователь не найден в базе.', parse_mode=ParseMode.HTML)
+            return
+    udata = get_user(db, target.id, message.chat.id)
+    old_rep = udata.get("reputation", 0)
+    udata["reputation"] = 0
+    save_db(db)
+    await message.reply(
+        f'{E["trash"]} Репутация {mention_html(target.full_name, target.id)} обнулена.\n'
+        f'<blockquote>Было: <b>{old_rep}</b> → стало: <b>0</b></blockquote>',
+        parse_mode=ParseMode.HTML
+    )
+    await log_action(message.bot, "Обнуление репутации", message.chat.id, message.chat.title or "",
+                     message.from_user.id, message.from_user.full_name, target.id, target.full_name,
+                     f"было {old_rep} → стало 0")
+
+
+# ─── Удалить сообщение ────────────────────────────────────────────────────────
+
+@router.message(F.text.regexp(r'(?i)^[!]дель$'))
+async def cmd_del(message: Message):
+    if not await check_access_and_reply(message):
+        return
+    db = load_db()
+    if not is_staff(db, message.from_user.id, message.chat.id):
+        await message.reply(f'{E["cross"]} <b>Только персонал.</b>', parse_mode=ParseMode.HTML)
+        return
+    if not message.reply_to_message:
+        await message.reply(f'{E["warn"]} Ответьте на сообщение.', parse_mode=ParseMode.HTML)
+        return
+    try:
+        await message.reply_to_message.delete()
+    except Exception:
+        pass
+    try:
+        await message.delete()
+    except Exception:
+        pass
+
+
+# ─── Медиа вкл/выкл ──────────────────────────────────────────────────────────
+
+@router.message(F.text.regexp(r'(?i)^[!]медиа (вкл|выкл)$'))
+async def cmd_media_toggle(message: Message):
+    if not await check_access_and_reply(message):
+        return
+    db = load_db()
+    if not is_admin(db, message.from_user.id, message.chat.id):
+        await message.reply(f'{E["cross"]} <b>Только администраторы.</b>', parse_mode=ParseMode.HTML)
+        return
+    enable = message.text.split()[-1].lower() == 'вкл'
+    try:
+        await message.bot.set_chat_permissions(
+            message.chat.id,
+            ChatPermissions(
+                can_send_messages=True,
+                can_send_audios=enable,
+                can_send_documents=enable,
+                can_send_photos=enable,
+                can_send_videos=enable,
+                can_send_video_notes=enable,
+                can_send_voice_notes=enable,
+                can_send_polls=enable,
+                can_send_other_messages=enable,
+            )
+        )
+        status = "разрешены" if enable else "запрещены"
+        icon = E["check"] if enable else E["cross"]
+        await message.reply(f'{icon} Медиафайлы <b>{status}</b> в группе.', parse_mode=ParseMode.HTML)
+        await log_action(message.bot, f"Медиа {'вкл' if enable else 'выкл'}", message.chat.id,
+                         message.chat.title or "", message.from_user.id, message.from_user.full_name,
+                         message.from_user.id, message.from_user.full_name)
+    except Exception as e:
+        await message.reply(f'{E["cross"]} Ошибка: {e}', parse_mode=ParseMode.HTML)
+
+
+# ─── Ридонли (закрыть/открыть чат) ──────────────────────────────────────────
+
+@router.message(F.text.regexp(r'(?i)^[!]ридонли$'))
+async def cmd_readonly_on(message: Message):
+    if not await check_access_and_reply(message):
+        return
+    db = load_db()
+    if not is_admin(db, message.from_user.id, message.chat.id):
+        await message.reply(f'{E["cross"]} <b>Только администраторы.</b>', parse_mode=ParseMode.HTML)
+        return
+    try:
+        await message.bot.set_chat_permissions(
+            message.chat.id,
+            ChatPermissions(can_send_messages=False)
+        )
+        await message.reply(f'{E["lock"]} <b>Чат закрыт.</b> Писать может только персонал.', parse_mode=ParseMode.HTML)
+        await log_action(message.bot, "Ридонли ВКЛ", message.chat.id, message.chat.title or "",
+                         message.from_user.id, message.from_user.full_name,
+                         message.from_user.id, message.from_user.full_name)
+    except Exception as e:
+        await message.reply(f'{E["cross"]} Ошибка: {e}', parse_mode=ParseMode.HTML)
+
+@router.message(F.text.regexp(r'(?i)^[!]открыть$'))
+async def cmd_readonly_off(message: Message):
+    if not await check_access_and_reply(message):
+        return
+    db = load_db()
+    if not is_admin(db, message.from_user.id, message.chat.id):
+        await message.reply(f'{E["cross"]} <b>Только администраторы.</b>', parse_mode=ParseMode.HTML)
+        return
+    try:
+        await message.bot.set_chat_permissions(
+            message.chat.id,
+            ChatPermissions(
+                can_send_messages=True,
+                can_send_audios=True,
+                can_send_documents=True,
+                can_send_photos=True,
+                can_send_videos=True,
+                can_send_video_notes=True,
+                can_send_voice_notes=True,
+                can_send_polls=True,
+                can_send_other_messages=True,
+                can_add_web_page_previews=True,
+            )
+        )
+        await message.reply(f'{E["unlock"]} <b>Чат открыт.</b> Все могут писать.', parse_mode=ParseMode.HTML)
+        await log_action(message.bot, "Ридонли ВЫКЛ", message.chat.id, message.chat.title or "",
+                         message.from_user.id, message.from_user.full_name,
+                         message.from_user.id, message.from_user.full_name)
+    except Exception as e:
+        await message.reply(f'{E["cross"]} Ошибка: {e}', parse_mode=ParseMode.HTML)
+
+
+# ─── Слоумод ─────────────────────────────────────────────────────────────────
+
+@router.message(F.text.regexp(r'(?i)^[!]слоумод'))
+async def cmd_slowmode(message: Message):
+    if not await check_access_and_reply(message):
+        return
+    db = load_db()
+    if not is_admin(db, message.from_user.id, message.chat.id):
+        await message.reply(f'{E["cross"]} <b>Только администраторы.</b>', parse_mode=ParseMode.HTML)
+        return
+    parts = message.text.split()
+    if len(parts) < 2 or not parts[1].isdigit():
+        await message.reply(f'{E["warn"]} Использование: <code>!слоумод [секунды]</code>\nПример: <code>!слоумод 30</code>\n<code>!слоумод 0</code> — отключить', parse_mode=ParseMode.HTML)
+        return
+    delay = int(parts[1])
+    delay = min(delay, 21600)
+    try:
+        await message.bot.set_chat_slow_mode_delay(message.chat.id, delay)
+        if delay == 0:
+            await message.reply(f'{E["check"]} <b>Слоумод отключён.</b>', parse_mode=ParseMode.HTML)
+        else:
+            await message.reply(f'{E["clock"]} <b>Слоумод:</b> {delay} сек. между сообщениями.', parse_mode=ParseMode.HTML)
+        await log_action(message.bot, f"Слоумод {delay}с", message.chat.id, message.chat.title or "",
+                         message.from_user.id, message.from_user.full_name,
+                         message.from_user.id, message.from_user.full_name)
+    except Exception as e:
+        await message.reply(f'{E["cross"]} Ошибка: {e}', parse_mode=ParseMode.HTML)
+
+
+# ─── Голосование ─────────────────────────────────────────────────────────────
+
+@router.message(F.text.regexp(r'(?i)^[!]голос'))
+async def cmd_vote(message: Message):
+    if not await check_access_and_reply(message):
+        return
+    db = load_db()
+    if not is_staff(db, message.from_user.id, message.chat.id):
+        await message.reply(f'{E["cross"]} <b>Только персонал.</b>', parse_mode=ParseMode.HTML)
+        return
+    parts = message.text.split(maxsplit=1)
+    if len(parts) < 2:
+        await message.reply(f'{E["warn"]} Использование: <code>!голос [вопрос]</code>', parse_mode=ParseMode.HTML)
+        return
+    question = parts[1]
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=f'{E["check"]} Да (0)', callback_data='vote_yes_0'),
+         InlineKeyboardButton(text=f'{E["cross"]} Нет (0)', callback_data='vote_no_0')],
+        [InlineKeyboardButton(text='Завершить', icon_custom_emoji_id="5278578973595427038", callback_data='vote_end')],
+    ])
+    await message.answer(
+        f'{E["bell"]} <b>Голосование</b>\n\n<blockquote>{question}</blockquote>',
+        parse_mode=ParseMode.HTML,
+        reply_markup=kb
+    )
+    try:
+        await message.delete()
+    except Exception:
+        pass
+
+VOTE_DATA: dict[str, dict] = {}
+
+@router.callback_query(F.data.startswith('vote_yes_') | F.data.startswith('vote_no_'))
+async def vote_cb(call: CallbackQuery):
+    msg_key = f"{call.message.chat.id}_{call.message.message_id}"
+    if msg_key not in VOTE_DATA:
+        VOTE_DATA[msg_key] = {"yes": set(), "no": set()}
+    uid = call.from_user.id
+    if call.data.startswith('vote_yes_'):
+        VOTE_DATA[msg_key]["yes"].add(uid)
+        VOTE_DATA[msg_key]["no"].discard(uid)
+    else:
+        VOTE_DATA[msg_key]["no"].add(uid)
+        VOTE_DATA[msg_key]["yes"].discard(uid)
+    yes = len(VOTE_DATA[msg_key]["yes"])
+    no = len(VOTE_DATA[msg_key]["no"])
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text=f'{E["check"]} Да ({yes})', callback_data=f'vote_yes_{yes}'),
+         InlineKeyboardButton(text=f'{E["cross"]} Нет ({no})', callback_data=f'vote_no_{no}')],
+        [InlineKeyboardButton(text='Завершить', icon_custom_emoji_id="5278578973595427038", callback_data='vote_end')],
+    ])
+    try:
+        await call.message.edit_reply_markup(reply_markup=kb)
+    except Exception:
+        pass
+    await call.answer()
+
+@router.callback_query(F.data == 'vote_end')
+async def vote_end_cb(call: CallbackQuery):
+    db = load_db()
+    if not is_staff(db, call.from_user.id, call.message.chat.id):
+        await call.answer("Только персонал может завершить голосование.", show_alert=True)
+        return
+    msg_key = f"{call.message.chat.id}_{call.message.message_id}"
+    data = VOTE_DATA.pop(msg_key, {"yes": set(), "no": set()})
+    yes = len(data["yes"])
+    no = len(data["no"])
+    old = call.message.text or call.message.caption or ""
+    await call.message.edit_text(
+        f'{old}\n\n{E["chart"]} <b>Результат:</b> {E["check"]} Да — <b>{yes}</b> | {E["cross"]} Нет — <b>{no}</b>',
+        parse_mode=ParseMode.HTML
+    )
+    await call.answer()
+
+
 async def main():
+    global _log_bot
+    _log_bot = Bot(
+        token=LOG_BOT_TOKEN,
+        default=DefaultBotProperties(parse_mode=ParseMode.HTML)
+    )
     bot = Bot(
         token=BOT_TOKEN,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML)
