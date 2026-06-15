@@ -49,6 +49,10 @@ def init_i18n():
         return
     i18n.set("file_format", "yml")
     i18n.set("filename_format", "{locale}.{format}")
+    # Явно регистрируем YAML лоадер
+    from i18n.loaders import YamlLoader
+    i18n.resource_loader.register_loader(YamlLoader, ["yml", "yaml"])
+    
     if LOCALES_DIR not in i18n.load_path:
         i18n.load_path.append(LOCALES_DIR)
     i18n.set("fallback", DEFAULT_LANG)
