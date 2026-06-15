@@ -209,18 +209,21 @@ def tr(key_or_text: str, user_id: int, chat_id: Optional[int] = None, **kwargs) 
 
     # Пробуем получить перевод
     try:
-        full_key = f"{lang}.{key_or_text}"
-        translated = i18n.t(full_key, **kwargs)
+        # Устанавливаем текущий язык для i18n
+        i18n.set("locale", lang)
+        
+        # i18n.t автоматически ищет ключ. Если в YAML есть корневой ключ 'ru:',
+        # то i18n.t('key') при locale='ru' найдет его.
+        translated = i18n.t(key_or_text, **kwargs)
 
-        # python-i18n возвращает ключ если перевод не найден
-        if translated == full_key or translated == key_or_text:
-            # Пробуем fallback на русский
+        # Если вернулся сам ключ — значит перевод не найден
+        if translated == key_or_text:
+            # Пробуем fallback на русский если текущий не русский
             if lang != DEFAULT_LANG:
-                fallback_key = f"{DEFAULT_LANG}.{key_or_text}"
-                fallback = i18n.t(fallback_key, **kwargs)
-                if fallback != fallback_key and fallback != key_or_text:
-                    _record_missing(key_or_text, lang)
-                    return fallback
+                i18n.set("locale", DEFAULT_LANG)
+                translated = i18n.t(key_or_text, **kwargs)
+                if translated != key_or_text:
+                    return translated
 
             # Ключ не найден ни в одном языке
             _record_missing(key_or_text, lang)
@@ -233,7 +236,7 @@ def tr(key_or_text: str, user_id: int, chat_id: Optional[int] = None, **kwargs) 
         return translated
 
     except Exception as e:
-        logger.debug("i18n: ошибка перевода ключа '%s': %s", key_or_text, e)
+        logger.error("i18n: ошибка перевода ключа '%s': %s", key_or_text, e)
         _record_missing(key_or_text, lang)
         result = key_or_text
         for k, v in kwargs.items():
