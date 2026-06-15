@@ -45,6 +45,13 @@ _log_bot: "Bot | None" = None
 _pm_cooldown: dict[int, float] = {}
 PM_COOLDOWN_SEC = 2.0
 
+# Кулдаун 2 сек для кнопок/команд в группах
+_group_cb_cooldown: dict[str, float] = {}
+GROUP_CB_COOLDOWN_SEC = 2.0
+
+# Трекер ссылок для автомута (chat_id → {user_id: count})
+_link_tracker: dict[int, dict[int, int]] = {}
+
 
 E = {
     "settings":     '<tg-emoji emoji-id="5278602437001767574">⚙</tg-emoji>',
@@ -360,14 +367,21 @@ async def cmd_start(message: Message):
         await message.answer(text, parse_mode=ParseMode.HTML, reply_markup=kb)
 
 async def _cb_guard(call: CallbackQuery) -> bool:
-    """Кулдаун 2 сек для кнопок в личке. Возвращает True если можно продолжать."""
+    """Кулдаун 2 сек для кнопок — в личке и в группах. Возвращает True если можно продолжать."""
     uid = call.from_user.id
-    if call.message.chat.type == "private" and uid != OWNER_ID:
-        now = time.time()
-        if now - _pm_cooldown.get(uid, 0) < PM_COOLDOWN_SEC:
+    now = time.time()
+    if call.message.chat.type == "private":
+        if uid != OWNER_ID and now - _pm_cooldown.get(uid, 0) < PM_COOLDOWN_SEC:
             await call.answer("Подождите немного...", show_alert=False)
             return False
-        _pm_cooldown[uid] = now
+        if uid != OWNER_ID:
+            _pm_cooldown[uid] = now
+    else:
+        key = f"{call.message.chat.id}_{uid}"
+        if now - _group_cb_cooldown.get(key, 0) < GROUP_CB_COOLDOWN_SEC:
+            await call.answer("Не так быстро!", show_alert=False)
+            return False
+        _group_cb_cooldown[key] = now
     return True
 
 @router.callback_query(F.data == "request_approval_start")
@@ -592,8 +606,20 @@ async def bot_member_updated(update: ChatMemberUpdated):
                 pass
             return
         g = get_group(db, chat.id)
-        # Сохраняем владельца группы — кто добавил бота
-        if g.get("owner_id") is None:
+        # Определяем реального владельца группы через Telegram API (статус CREATOR)
+        real_owner_id = None
+        try:
+            admins = await update.bot.get_chat_administrators(chat.id)
+            for a in admins:
+                if a.status == ChatMemberStatus.CREATOR:
+                    real_owner_id = a.user.id
+                    break
+        except Exception:
+            pass
+        # Устанавливаем owner_id: приоритет — реальный создатель группы
+        if real_owner_id:
+            g["owner_id"] = real_owner_id
+        elif g.get("owner_id") is None:
             g["owner_id"] = uid
         save_db(db)
         name = chat.title or "группа"
@@ -657,55 +683,182 @@ async def check_access_and_reply(message: Message) -> bool:
 
 @router.message(F.text.regexp(r'(?i)^[!]команды$'))
 async def cmd_all_commands(message: Message):
-    if not await check_access_info(message):
+    if message.from_user.id != OWNER_ID:
         return
-    text = (
-        f'{E["book"]} <b>Все команды бота</b>\n\n'
-        f'<b>Наказания</b> (ответом на сообщение):\n'
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Баны и наказания", icon_custom_emoji_id="5278578973595427038", callback_data="cmds_bans"),
+         InlineKeyboardButton(text="Снятие наказаний", icon_custom_emoji_id="5278411813468269386", callback_data="cmds_unpunish")],
+        [InlineKeyboardButton(text="Персонал", icon_custom_emoji_id="5276262671962892944", callback_data="cmds_staff"),
+         InlineKeyboardButton(text="Управление чатом", icon_custom_emoji_id="5278602437001767574", callback_data="cmds_chat")],
+        [InlineKeyboardButton(text="Цензура", icon_custom_emoji_id="5276262671962892944", callback_data="cmds_censor"),
+         InlineKeyboardButton(text="Репутация", icon_custom_emoji_id="5276111746812112286", callback_data="cmds_rep")],
+        [InlineKeyboardButton(text="Статистика", icon_custom_emoji_id="5278778882848220741", callback_data="cmds_stats"),
+         InlineKeyboardButton(text="Утилиты", icon_custom_emoji_id="5278753302023004775", callback_data="cmds_utils")],
+        [InlineKeyboardButton(text="Рассылка", icon_custom_emoji_id="5278528159837348960", callback_data="cmds_broadcast")],
+    ])
+    await message.reply(
+        f'{E["crown"]} <b>Команды бота — выберите категорию</b>',
+        parse_mode=ParseMode.HTML,
+        reply_markup=kb
+    )
+
+# ─── Callback'и для !команды ─────────────────────────────────────────────────
+
+def _cmds_kb_back():
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Назад", icon_custom_emoji_id="5206401524200145033", callback_data="cmds_back")]
+    ])
+
+@router.callback_query(F.data == "cmds_back")
+async def cmds_back_cb(call: CallbackQuery):
+    if call.from_user.id != OWNER_ID:
+        await call.answer("Нет доступа", show_alert=True); return
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Баны и наказания", icon_custom_emoji_id="5278578973595427038", callback_data="cmds_bans"),
+         InlineKeyboardButton(text="Снятие наказаний", icon_custom_emoji_id="5278411813468269386", callback_data="cmds_unpunish")],
+        [InlineKeyboardButton(text="Персонал", icon_custom_emoji_id="5276262671962892944", callback_data="cmds_staff"),
+         InlineKeyboardButton(text="Управление чатом", icon_custom_emoji_id="5278602437001767574", callback_data="cmds_chat")],
+        [InlineKeyboardButton(text="Цензура", icon_custom_emoji_id="5276262671962892944", callback_data="cmds_censor"),
+         InlineKeyboardButton(text="Репутация", icon_custom_emoji_id="5276111746812112286", callback_data="cmds_rep")],
+        [InlineKeyboardButton(text="Статистика", icon_custom_emoji_id="5278778882848220741", callback_data="cmds_stats"),
+         InlineKeyboardButton(text="Утилиты", icon_custom_emoji_id="5278753302023004775", callback_data="cmds_utils")],
+        [InlineKeyboardButton(text="Рассылка", icon_custom_emoji_id="5278528159837348960", callback_data="cmds_broadcast")],
+    ])
+    await call.message.edit_text(f'{E["crown"]} <b>Команды бота — выберите категорию</b>', parse_mode=ParseMode.HTML, reply_markup=kb)
+    await call.answer()
+
+@router.callback_query(F.data == "cmds_bans")
+async def cmds_bans_cb(call: CallbackQuery):
+    if call.from_user.id != OWNER_ID: await call.answer("Нет доступа", show_alert=True); return
+    await call.message.edit_text(
+        f'{E["lock"]} <b>Баны и наказания</b> <i>(ответом на сообщение)</i>\n\n'
         f'<code>!бан</code> [причина] — бессрочный бан\n'
-        f'<code>!мут</code> 1ч/30мин [причина] — мут\n'
-        f'<code>!тихий</code> 1ч — тихий мут\n'
-        f'<code>!кик</code> [причина] — кик\n'
-        f'<code>!варн</code> [причина] — предупреждение (3=мут 7д)\n'
-        f'<code>!гбан</code> — глобальный бан\n\n'
-        f'<b>Снятие наказаний:</b>\n'
-        f'<code>!разбан</code> · <code>!размут</code> · <code>!анварн</code> · <code>!разгбан</code>\n\n'
-        f'<b>Персонал:</b>\n'
-        f'<code>!модер</code> · <code>!админ</code> · <code>!сеньор</code> · <code>!деадмин</code>\n\n'
-        f'<b>Управление чатом:</b>\n'
+        f'<code>!мут</code> 1ч/30мин [причина] — мут (не может писать)\n'
+        f'<code>!тихий</code> 1ч — тихий мут без уведомления\n'
+        f'<code>!кик</code> [причина] — кик из чата\n'
+        f'<code>!варн</code> [причина] — предупреждение (3/3 = мут 7д)\n'
+        f'<code>!гбан</code> — глобальный бан (только владелец бота)\n'
+        f'<code>!заморозить</code> @user — бессрочный мут',
+        parse_mode=ParseMode.HTML, reply_markup=_cmds_kb_back()
+    ); await call.answer()
+
+@router.callback_query(F.data == "cmds_unpunish")
+async def cmds_unpunish_cb(call: CallbackQuery):
+    if call.from_user.id != OWNER_ID: await call.answer("Нет доступа", show_alert=True); return
+    await call.message.edit_text(
+        f'{E["check"]} <b>Снятие наказаний</b>\n\n'
+        f'<code>!разбан</code> — снять бан\n'
+        f'<code>!размут</code> — снять мут\n'
+        f'<code>!анварн</code> — снять 1 предупреждение\n'
+        f'<code>!разгбан</code> — снять глобальный бан',
+        parse_mode=ParseMode.HTML, reply_markup=_cmds_kb_back()
+    ); await call.answer()
+
+@router.callback_query(F.data == "cmds_staff")
+async def cmds_staff_cb(call: CallbackQuery):
+    if call.from_user.id != OWNER_ID: await call.answer("Нет доступа", show_alert=True); return
+    await call.message.edit_text(
+        f'{E["shield"]} <b>Персонал</b>\n\n'
+        f'<code>!модер</code> — назначить модератора\n'
+        f'<code>!админ</code> — назначить администратора\n'
+        f'<code>!сеньор</code> — назначить ст. админа\n'
+        f'<code>!деадмин</code> — снять с должности\n'
+        f'<code>!стафф</code> — список персонала\n'
+        f'<code>!панель</code> → Персонал — визуальный менеджер',
+        parse_mode=ParseMode.HTML, reply_markup=_cmds_kb_back()
+    ); await call.answer()
+
+@router.callback_query(F.data == "cmds_chat")
+async def cmds_chat_cb(call: CallbackQuery):
+    if call.from_user.id != OWNER_ID: await call.answer("Нет доступа", show_alert=True); return
+    await call.message.edit_text(
+        f'{E["settings"]} <b>Управление чатом</b>\n\n'
         f'<code>!ридонли</code> — закрыть чат\n'
         f'<code>!открыть</code> — открыть чат\n'
         f'<code>!слоумод</code> [сек] — медленный режим\n'
-        f'<code>!медиа</code> вкл/выкл — разрешить/запретить медиа\n'
-        f'<code>!дель</code> — удалить сообщение (ответом)\n\n'
-        f'<b>Цензура:</b>\n'
-        f'<code>!цензура добавить</code> слово1,слово2\n'
-        f'<code>!цензура удалить</code> слово\n'
-        f'<code>!цензура список</code> · <code>!цензура очистить</code>\n\n'
-        f'<b>Информация:</b>\n'
-        f'<code>!инфо</code> · <code>!кто</code> · <code>!обо мне</code>\n'
-        f'<code>!стафф</code> · <code>!правила</code> · <code>!чат</code>\n'
-        f'<code>!история</code> · <code>!предупреждения</code> · <code>!мои варны</code>\n'
-        f'<code>!топ</code> / <code>!топ день/неделя/месяц/вся</code>\n'
-        f'<code>!рейтинг</code> · <code>!репутация</code> · <code>!статус</code>\n'
-        f'<code>!топнарушителей</code> — топ по нарушениям\n\n'
-        f'<b>Репутация:</b>\n'
-        f'<code>!репзнак</code> +5/-3 — изменить вручную\n'
-        f'<code>!обнулить</code> [@user] — сбросить репутацию\n'
-        f'<code>!добавититул</code> [мин] [макс] [название]\n'
-        f'<code>!удалититул</code> [номер] · <code>!титулы</code>\n\n'
-        f'<b>Утилиты:</b>\n'
-        f'<code>!голос</code> [вопрос] — голосование\n'
+        f'<code>!медиа</code> вкл/выкл — медиафайлы\n'
+        f'<code>!дель</code> — удалить сообщение (ответом)\n'
+        f'<code>!пин</code> / <code>!откреп</code> — закрепить/открепить\n'
+        f'<code>!ссылка</code> [название] — инвайт-ссылка\n'
         f'<code>!объявление</code> [текст] — объявление от бота\n'
-        f'<code>!пин</code> · <code>!откреп</code> · <code>!ссылка</code>\n'
-        f'<code>!чистка</code> [N] · <code>!сетправила</code>\n'
-        f'<code>!панель</code> · <code>!настройки</code>\n\n'
-        f'<b>Рассылка:</b>\n'
-        f'<code>!рассылка</code> [текст] — во все группы (владелец бота)\n'
-        f'<code>!грассылка</code> [текст] — в эту группу (админ)\n\n'
-        f'<code>!хелп</code> — меню по категориям'
-    )
-    await message.reply(text, parse_mode=ParseMode.HTML)
+        f'<code>!чистка</code> [N] — удалить N сообщений\n'
+        f'<code>!сетправила</code> [текст] — установить правила\n'
+        f'<code>!голос</code> [вопрос] — голосование',
+        parse_mode=ParseMode.HTML, reply_markup=_cmds_kb_back()
+    ); await call.answer()
+
+@router.callback_query(F.data == "cmds_censor")
+async def cmds_censor_cb(call: CallbackQuery):
+    if call.from_user.id != OWNER_ID: await call.answer("Нет доступа", show_alert=True); return
+    await call.message.edit_text(
+        f'{E["shield"]} <b>Цензура</b>\n\n'
+        f'<code>!цензура добавить</code> слово1,слово2 — добавить слова\n'
+        f'<code>!цензура удалить</code> слово — убрать слово\n'
+        f'<code>!цензура список</code> — все запрещённые слова\n'
+        f'<code>!цензура очистить</code> — очистить всё\n\n'
+        f'Управление через <code>!панель</code> → Цензура',
+        parse_mode=ParseMode.HTML, reply_markup=_cmds_kb_back()
+    ); await call.answer()
+
+@router.callback_query(F.data == "cmds_rep")
+async def cmds_rep_cb(call: CallbackQuery):
+    if call.from_user.id != OWNER_ID: await call.answer("Нет доступа", show_alert=True); return
+    await call.message.edit_text(
+        f'{E["star"]} <b>Репутация</b>\n\n'
+        f'<code>!репзнак</code> +5/-3 — изменить вручную (ответом)\n'
+        f'<code>!обнулить</code> [@user] — сбросить в 0\n'
+        f'<code>!рейтинг</code> [@user] — репутация пользователя\n'
+        f'<code>!репутация</code> — топ-25\n'
+        f'<code>!добавититул</code> [мин] [макс] [название]\n'
+        f'<code>!удалититул</code> [номер]\n'
+        f'<code>!титулы</code> — список титулов\n\n'
+        f'Триггеры: ответь <code>+</code>/<code>-реп</code> на сообщение',
+        parse_mode=ParseMode.HTML, reply_markup=_cmds_kb_back()
+    ); await call.answer()
+
+@router.callback_query(F.data == "cmds_stats")
+async def cmds_stats_cb(call: CallbackQuery):
+    if call.from_user.id != OWNER_ID: await call.answer("Нет доступа", show_alert=True); return
+    await call.message.edit_text(
+        f'{E["chart"]} <b>Статистика</b>\n\n'
+        f'<code>!топ</code> — топ активности сегодня\n'
+        f'<code>!топ день/неделя/месяц/вся</code>\n'
+        f'<code>!топнарушителей</code> — топ по нарушениям\n'
+        f'<code>!инфо</code> — профиль пользователя\n'
+        f'<code>!кто</code> — роль и репутация (ответом)\n'
+        f'<code>!история</code> — история нарушений\n'
+        f'<code>!предупреждения</code> — варны\n'
+        f'<code>!мои варны</code> — свои предупреждения\n'
+        f'<code>!обо мне</code> — свой профиль\n'
+        f'<code>!чат</code> — информация о чате\n'
+        f'<code>!статус</code> — статус функций\n'
+        f'<code>!сравнить</code> @user1 @user2 — сравнение',
+        parse_mode=ParseMode.HTML, reply_markup=_cmds_kb_back()
+    ); await call.answer()
+
+@router.callback_query(F.data == "cmds_utils")
+async def cmds_utils_cb(call: CallbackQuery):
+    if call.from_user.id != OWNER_ID: await call.answer("Нет доступа", show_alert=True); return
+    await call.message.edit_text(
+        f'{E["info"]} <b>Утилиты</b>\n\n'
+        f'<code>!правила</code> — правила чата\n'
+        f'<code>!стафф</code> — персонал группы\n'
+        f'<code>!панель</code> — панель управления\n'
+        f'<code>!настройки</code> — быстрые настройки\n'
+        f'<code>!репорт</code> — жалоба (ответом)\n'
+        f'<code>!хелп</code> — меню помощи',
+        parse_mode=ParseMode.HTML, reply_markup=_cmds_kb_back()
+    ); await call.answer()
+
+@router.callback_query(F.data == "cmds_broadcast")
+async def cmds_broadcast_commands_cb(call: CallbackQuery):
+    if call.from_user.id != OWNER_ID: await call.answer("Нет доступа", show_alert=True); return
+    await call.message.edit_text(
+        f'{E["mega"]} <b>Рассылка</b>\n\n'
+        f'<code>!рассылка</code> [текст] — во все группы (только владелец бота)\n'
+        f'<code>!грассылка</code> [текст] — в текущую группу (для админов)',
+        parse_mode=ParseMode.HTML, reply_markup=_cmds_kb_back()
+    ); await call.answer()
 
 @router.message(F.text.regexp(r'(?i)^[!]хелп$'))
 async def cmd_help(message: Message):
@@ -1277,6 +1430,8 @@ async def cmd_warn(message: Message):
 
 @router.callback_query(F.data.startswith("warn_minus_"))
 async def warn_minus_cb(call: CallbackQuery):
+    if not await _cb_guard(call):
+        return
     db = load_db()
     if not is_staff(db, call.from_user.id, call.message.chat.id):
         await call.answer("Нет доступа", show_alert=True)
@@ -1290,6 +1445,8 @@ async def warn_minus_cb(call: CallbackQuery):
 
 @router.callback_query(F.data.startswith("warn_plus_"))
 async def warn_plus_cb(call: CallbackQuery):
+    if not await _cb_guard(call):
+        return
     db = load_db()
     if not is_staff(db, call.from_user.id, call.message.chat.id):
         await call.answer("Нет доступа", show_alert=True)
@@ -1302,6 +1459,8 @@ async def warn_plus_cb(call: CallbackQuery):
 
 @router.callback_query(F.data.startswith("warn_reset_"))
 async def warn_reset_cb(call: CallbackQuery):
+    if not await _cb_guard(call):
+        return
     db = load_db()
     if not is_staff(db, call.from_user.id, call.message.chat.id):
         await call.answer("Нет доступа", show_alert=True)
@@ -1634,6 +1793,8 @@ async def cmd_report(message: Message):
 
 @router.callback_query(F.data.startswith("rep_ban_"))
 async def rep_ban_cb(call: CallbackQuery):
+    if not await _cb_guard(call):
+        return
     db = load_db()
     if not is_staff(db, call.from_user.id, call.message.chat.id):
         await call.answer("Нет доступа", show_alert=True)
@@ -1651,6 +1812,8 @@ async def rep_ban_cb(call: CallbackQuery):
 
 @router.callback_query(F.data.startswith("rep_mute_"))
 async def rep_mute_cb(call: CallbackQuery):
+    if not await _cb_guard(call):
+        return
     db = load_db()
     if not is_staff(db, call.from_user.id, call.message.chat.id):
         await call.answer("Нет доступа", show_alert=True)
@@ -1673,6 +1836,8 @@ async def rep_mute_cb(call: CallbackQuery):
 
 @router.callback_query(F.data.startswith("rep_warn_"))
 async def rep_warn_cb(call: CallbackQuery):
+    if not await _cb_guard(call):
+        return
     db = load_db()
     if not is_staff(db, call.from_user.id, call.message.chat.id):
         await call.answer("Нет доступа", show_alert=True)
@@ -3691,6 +3856,81 @@ async def track_messages(message: Message):
                 )
             except:
                 pass
+
+    # ── Автомодерация — только для не-персонала ───────────────────────────────
+    if not is_staff(db, uid, chat_id):
+        msg_text = message.text or message.caption or ""
+
+        # 1. Капслок: сообщение > 10 слов и > 70% заглавных → удалить + варн
+        if msg_text and len(msg_text) > 20:
+            words = msg_text.split()
+            if len(words) >= 10:
+                caps_count = sum(1 for w in words if w.isupper() and len(w) > 1)
+                if caps_count / len(words) > 0.7:
+                    try:
+                        await message.delete()
+                    except Exception:
+                        pass
+                    udata["warns"] = udata.get("warns", 0) + 1
+                    udata["violations"] = udata.get("violations", 0) + 1
+                    warn_msg = await message.answer(
+                        f'{E["warn"]} {mention_html(user.full_name, uid)}, не пиши капслоком! '
+                        f'Предупреждение <b>{udata["warns"]}/3</b>.',
+                        parse_mode=ParseMode.HTML
+                    )
+                    await asyncio.sleep(5)
+                    try: await warn_msg.delete()
+                    except Exception: pass
+                    save_db(db)
+                    return
+
+        # 2. Ссылки: новый участник (< 24ч) → удалить молча
+        if msg_text:
+            join_date_str = udata.get("join_date")
+            is_new = False
+            if join_date_str:
+                try:
+                    jd = datetime.strptime(join_date_str, "%Y-%m-%d")
+                    is_new = (datetime.now() - jd).total_seconds() < 86400
+                except Exception:
+                    pass
+            if is_new and re.search(r'(https?://|t\.me/)', msg_text):
+                try:
+                    await message.delete()
+                except Exception:
+                    pass
+                save_db(db)
+                return
+
+        # 3. Ссылки 2 раза подряд → автомут 30 мин
+        if msg_text and re.search(r'(https?://|t\.me/)', msg_text):
+            chat_links = _link_tracker.setdefault(chat_id, {})
+            chat_links[uid] = chat_links.get(uid, 0) + 1
+            if chat_links[uid] >= 2:
+                chat_links[uid] = 0
+                until = datetime.now() + timedelta(minutes=30)
+                try:
+                    await message.bot.restrict_chat_member(
+                        chat_id, uid,
+                        permissions=ChatPermissions(can_send_messages=False),
+                        until_date=until
+                    )
+                    udata["muted_until"] = until.strftime("%Y-%m-%d %H:%M")
+                    udata["violations"] = udata.get("violations", 0) + 1
+                    await message.answer(
+                        f'{E["lock"]} {mention_html(user.full_name, uid)} — автомут на 30 мин за повторную отправку ссылок.',
+                        parse_mode=ParseMode.HTML
+                    )
+                    await log_action(message.bot, "АВТОМУТ (ссылки)", chat_id, message.chat.title or "",
+                                     OWNER_ID, "Автомодерация", uid, user.full_name, "ссылки 2 раза подряд")
+                except Exception:
+                    pass
+                save_db(db)
+                return
+        else:
+            # Сброс счётчика ссылок если написал нормальное сообщение
+            _link_tracker.setdefault(chat_id, {}).pop(uid, None)
+
     if message.text:
         text_low = message.text.lower().strip()
         if message.reply_to_message and message.reply_to_message.from_user:
@@ -3824,6 +4064,54 @@ async def log_action(bot, action: str, chat_id: int, chat_title: str, mod_id: in
 
 
 # ─── Топ нарушителей ──────────────────────────────────────────────────────────
+
+@router.message(F.text.regexp(r'(?i)^[!]сравнить'))
+async def cmd_compare(message: Message):
+    if not await check_access_info(message):
+        return
+    db = load_db()
+    chat_id = message.chat.id
+    parts = message.text.split()
+    # Собираем до 2 @username из аргументов
+    targets = []
+    for p in parts[1:]:
+        if p.startswith('@'):
+            uname = p[1:].lower()
+            for u in db["users"].values():
+                if (u.get("username") or "").lower() == uname and u.get("chat_id") == chat_id:
+                    targets.append(u)
+                    break
+        if len(targets) == 2:
+            break
+    if len(targets) < 2:
+        await message.reply(f'{E["warn"]} Укажите двух пользователей: <code>!сравнить @user1 @user2</code>', parse_mode=ParseMode.HTML)
+        return
+    u1, u2 = targets
+    n1 = u1.get("first_name") or u1.get("username") or str(u1["user_id"])
+    n2 = u2.get("first_name") or u2.get("username") or str(u2["user_id"])
+    group = get_group(db, chat_id)
+    r1, r2 = u1.get("reputation", 0), u2.get("reputation", 0)
+    w1, w2 = u1.get("warns", 0), u2.get("warns", 0)
+    v1, v2 = u1.get("violations", 0), u2.get("violations", 0)
+    m1 = "замучен" if u1.get("muted_until") else "нет"
+    m2 = "замучен" if u2.get("muted_until") else "нет"
+    def cmp(a, b, higher_better=True):
+        if a == b: return "="
+        win = a > b if higher_better else a < b
+        return f'{E["check"]}' if win else f'{E["cross"]}'
+    await message.reply(
+        f'{E["chart"]} <b>Сравнение участников</b>\n\n'
+        f'<blockquote>'
+        f'<b>Показатель</b> — {mention_html(n1, u1["user_id"])} vs {mention_html(n2, u2["user_id"])}\n\n'
+        f'{E["star"]} Репутация: <b>{r1}</b> {cmp(r1,r2)} <b>{r2}</b>\n'
+        f'{E["warn"]} Варны: <b>{w1}/3</b> {cmp(w1,w2,False)} <b>{w2}/3</b>\n'
+        f'{E["cross"]} Нарушений: <b>{v1}</b> {cmp(v1,v2,False)} <b>{v2}</b>\n'
+        f'{E["clock"]} Мут: <b>{m1}</b> / <b>{m2}</b>\n'
+        f'{E["profile"]} Титул 1: {get_rep_title(r1, group)}\n'
+        f'{E["profile"]} Титул 2: {get_rep_title(r2, group)}'
+        f'</blockquote>',
+        parse_mode=ParseMode.HTML
+    )
 
 @router.message(F.text.regexp(r'(?i)^[!]топнарушителей$'))
 async def cmd_top_violators(message: Message):
@@ -4069,6 +4357,8 @@ VOTE_DATA: dict[str, dict] = {}
 
 @router.callback_query(F.data.startswith('vote_yes_') | F.data.startswith('vote_no_'))
 async def vote_cb(call: CallbackQuery):
+    if not await _cb_guard(call):
+        return
     msg_key = f"{call.message.chat.id}_{call.message.message_id}"
     if msg_key not in VOTE_DATA:
         VOTE_DATA[msg_key] = {"yes": set(), "no": set()}
