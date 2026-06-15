@@ -449,12 +449,13 @@ async def cmd_start(message: Message):
         allowed = await check_pm_cooldown(uid)
         if not allowed:
             return
-    # Только владелец и одобренные могут пользоваться ботом в личке
-    approved = uid in db.get("approved_owners", []) or uid == OWNER_ID
+    # Проверка доступа
+    is_owner = (uid == OWNER_ID)
+    approved = uid in db.get("approved_owners", []) or is_owner
+    
     if not approved:
         warned = db.get("warned_owners", {})
         if warned.get(str(uid), 0) < 3:
-            # Показываем только кнопку запроса — ничего лишнего
             await message.answer(
                 f'{E["bot"]} <b>{tr("start_hello", uid, name="")}</b>\n\n'
                 f'{E["info"]} {tr("start_add_info", uid, message.chat.id)}',
@@ -525,7 +526,7 @@ async def cmd_start(message: Message):
             [btn("Глобальные баны", "cross", callback_data="owner_gbans"),
              btn("Одобрения", "check", callback_data="owner_approvals")],
             [btn("Рассылка", "mega", callback_data="owner_broadcast")],
-            [btn("Сменить язык бота", "earth", callback_data="request_lang_change")]
+            [btn("Сменить язык бота", "earth", callback_data="owner_change_lang_menu")]
         ])
         await message.answer(text, parse_mode=ParseMode.HTML, reply_markup=kb)
     else:
@@ -573,6 +574,22 @@ async def _cb_guard(call: CallbackQuery) -> bool:
             await call.answer(tr("not_fast", uid, message.chat.id), show_alert=False)
             return False
     return True
+
+@router.callback_query(F.data == "owner_change_lang_menu")
+async def owner_change_lang_menu_cb(call: CallbackQuery):
+    """Меню выбора языка для владельца (без запроса одобрения)."""
+    if call.from_user.id != OWNER_ID: return
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="🇷🇺 Русский", callback_data="set_lang_ru"),
+            InlineKeyboardButton(text="🇬🇧 English", callback_data="set_lang_en"),
+        ],
+        [InlineKeyboardButton(text="Назад", callback_data="back_to_start")]
+    ])
+    await call.message.edit_text(
+        f'{E["earth"]} <b>Смена языка бота</b>\n\nВыберите язык, который станет основным для всех групп:',
+        reply_markup=kb, parse_mode=ParseMode.HTML
+    )
 
 @router.callback_query(F.data == "request_approval_start")
 async def request_approval_start_cb(call: CallbackQuery):

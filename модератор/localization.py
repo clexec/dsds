@@ -180,72 +180,7 @@ async def set_initial_lang_cb(call: CallbackQuery):
     from bot import cmd_start
     await cmd_start(call.message)
 
-@lang_router.callback_query(F.data == "request_lang_change")
-async def request_lang_change_cb(call: CallbackQuery):
-    uid = call.from_user.id
-    from bot import OWNER_ID, E
-    if uid != OWNER_ID:
-        await call.answer("Только владелец может это сделать.", show_alert=True)
-        return
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [
-            InlineKeyboardButton(text="🇷🇺 Русский", callback_data="ask_seyats_lang_ru"),
-            InlineKeyboardButton(text="🇬🇧 English", callback_data="ask_seyats_lang_en"),
-        ],
-        [InlineKeyboardButton(text="Отмена", callback_data="cancel_lang_request")]
-    ])
-    await call.message.edit_text(
-        f'{E["earth"]} <b>Смена языка бота</b>\n\nДля смены глобального языка требуется одобрение @seyats.\nВыберите язык:',
-        reply_markup=kb, parse_mode=ParseMode.HTML
-    )
-
-@lang_router.callback_query(F.data.startswith("ask_seyats_lang_"))
-async def ask_seyats_lang_cb(call: CallbackQuery):
-    new_lang = call.data.replace("ask_seyats_lang_", "")
-    uid = call.from_user.id
-    from bot import OWNER_ID, E
-    if uid != OWNER_ID: return
-    kb = InlineKeyboardMarkup(inline_keyboard=[
-        [
-            InlineKeyboardButton(text="Одобрить", callback_data=f"confirm_lang_change_{new_lang}"),
-            InlineKeyboardButton(text="Отклонить", callback_data="reject_lang_change")
-        ]
-    ])
-    try:
-        await call.bot.send_message(OWNER_ID, f'{E["warn"]} <b>Запрос на смену языка</b>\n\nНа: <b>{new_lang.upper()}</b>', reply_markup=kb, parse_mode=ParseMode.HTML)
-        await call.answer("Запрос отправлен администратору.", show_alert=True)
-    except Exception as e:
-        await call.answer(f"Ошибка: {e}", show_alert=True)
-    await call.message.delete()
-
-@lang_router.callback_query(F.data.startswith("confirm_lang_change_"))
-async def confirm_lang_change_cb(call: CallbackQuery):
-    uid = call.from_user.id
-    from bot import OWNER_ID, save_db
-    if uid != OWNER_ID: return
-    new_lang = call.data.replace("confirm_lang_change_", "")
-    db = _db_loader() if _db_loader else {}
-    set_user_lang(uid, new_lang, db)
-    for g_id, gdata in db.get("groups", {}).items():
-        gdata["lang"] = new_lang
-    if _db_loader: save_db(db)
-    await call.message.edit_text(f"✅ Язык изменен на: <b>{new_lang.upper()}</b>", parse_mode=ParseMode.HTML)
-    await call.answer("Язык изменен!", show_alert=True)
-    try: await call.bot.send_message(OWNER_ID, f"✅ Запрос на {new_lang.upper()} одобрен!", parse_mode=ParseMode.HTML)
-    except: pass
-
-@lang_router.callback_query(F.data == "reject_lang_change")
-async def reject_lang_change_cb(call: CallbackQuery):
-    from bot import OWNER_ID
-    if call.from_user.id != OWNER_ID: return
-    await call.message.edit_text("❌ Запрос отклонен.")
-    try: await call.bot.send_message(OWNER_ID, "❌ Запрос на смену языка отклонен.", parse_mode=ParseMode.HTML)
-    except: pass
-
-@lang_router.callback_query(F.data == "cancel_lang_request")
-async def cancel_lang_request_cb(call: CallbackQuery):
-    await call.message.delete()
-    await call.message.answer("Отменено. Нажмите /start")
+# Обработчики запросов на смену языка удалены. Владелец меняет язык напрямую в bot.py.
 
 def invalidate_lang_cache(user_id: int):
     """Инвалидирует кэш языка для пользователя."""
