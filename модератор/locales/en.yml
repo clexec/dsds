@@ -55,17 +55,17 @@ en:
   approval_approved_mark: "Approved"
   approval_rejected_mark: "Rejected (%{count}/3)"
   approval_warn_msg: "Request rejected.\n\nWarning %{count}/3. At 3/3 access will be blocked."
-  approval_blocked_msg: "Your access to the bot has been blocked.\n\nYou received 3/3 warnings."
+  approval_blocked_msg: "Your access to the bot is blocked.\n\nYou received 3/3 warnings."
 
-  # ─── Bot added to group ──────────────────────────────────────────────────────
-  bot_added_group: "Hello! I'm seyats — moderator bot!\n\nAdd me as an administrator and I'll keep order in %{name}.\n\nType !help for the command list."
+  # ─── Adding bot to group ─────────────────────────────────────────────────────
+  bot_added_group: "Hello! I am seyats — a moderator!\n\nAdd me as an administrator and I will keep order in %{name}.\n\nType !help for a list of commands."
   bot_added_owner: "Bot successfully added to group: %{name}\n\nGroup ID: %{id}"
-  bot_no_approval_group: "Warning!\n\nThis user does not have approval to add the bot.\nThe bot will not execute commands.\n\nWarning %{count}/3"
+  bot_no_approval_group: "Attention!\n\nThis user does not have approval to add the bot.\nThe bot will not execute commands.\n\nWarning %{count}/3"
   bot_no_approval_user: "Warning %{count}/3\n\nYou added the bot without approval. At 3/3 access will be blocked."
-  bot_demoted_warn: "%{user} receives a warning [%{warns}/3] for removing bot permissions.\nThe bot is protected. Attempting to restrict it is a violation."
+  bot_demoted_warn: "%{user} receives a warning [%{warns}/3] for removing bot rights.\nThe bot is protected. Attempting to restrict it is a violation."
 
   # ─── Help ────────────────────────────────────────────────────────────────────
-  help_menu_title: "Help menu"
+  help_menu_title: "Help Menu"
   help_menu_choose: "Choose a category:"
   help_punish_btn: "Punishments"
   help_unpunish_btn: "Remove punishments"
@@ -78,9 +78,9 @@ en:
   help_all_btn: "All commands"
 
   help_punish_title: "Punishments"
-  help_punish_text: "!ban [reason] — permanent ban\n!mute 1h/30min [reason] — mute (can't write)\n!silent 1h/30min — silent mute without notification\n!kick [reason] — kick from chat\n!warn [reason] — warning (3/3 = 7-day mute)\n!gban — global ban (owner only)\n!announce [text] — announcement from bot\n!clean [N=10] — delete N last messages\n\nCommands are applied by replying to a message."
+  help_punish_text: "!ban [reason] — permanent ban\n!mute 1h/30min [reason] — mute (cannot write)\n!silent 1h/30min — silent mute without notification\n!kick [reason] — kick from chat\n!warn [reason] — warning (3/3 = 7d mute)\n!gban — global ban (owner only)\n!announcement [text] — announcement from bot\n!cleanup [N=10] — delete last N messages\n\nCommands are applied by replying to a message."
 
-  help_unpunish_title: "Remove punishments"
+  help_unpunish_title: "Remove Punishments"
   help_unpunish_text: "!unban — remove ban\n!unmute — remove mute\n!unwarn — remove 1 warning\n!ungban — remove global ban (owner)\n\nReply to the user's message."
 
   help_rep_title: "Reputation"
@@ -88,63 +88,63 @@ en:
   help_rep_reply: "Reply to a message with one of the triggers."
   help_rep_plus: "Increase:"
   help_rep_minus: "Decrease:"
-  help_rep_limit: "Limit: 5 ratings per day (changeable in panel)."
+  help_rep_limit: "Limit: 5 ratings per day (change in panel)."
 
   help_censorship_title: "Censorship"
-  help_censorship_text: "!censor add [word] — add word to blacklist\n!censor remove [word] — remove word from list\n!censor list — show all banned words\n!censor clear — delete all words\n\nThe bot silently deletes messages with banned words.\nConfigure in panel: !panel → Censorship"
+  help_censorship_text: "!censorship add [word] — add word to blacklist\n!censorship remove [word] — remove word from list\n!censorship list — show all forbidden words\n!censorship clear — delete all words\n\nThe bot silently deletes messages with forbidden words.\nConfigure in panel: !panel → Censorship"
 
-  help_report_title: "Reports"
-  help_report_text: "!report — reply to the violation\nThe bot will tag administrators and send quick action buttons."
+  help_report_title: "Complaints (Reports)"
+  help_report_text: "!report — reply to a violation\nThe bot will tag administrators and send quick response buttons."
 
-  help_info_title: "Information requests"
+  help_info_title: "Information Requests"
   help_settings_title: "Settings"
-  help_rights_title: "Staff rights"
+  help_rights_title: "Staff Rights"
 
-  # ─── /lang command ────────────────────────────────────────────────────────────
-  lang_choose: "Choose your interface language:"
-  lang_set_ru: "Язык изменён на Русский 🇷🇺"
+  # ─── /lang commands ───────────────────────────────────────────────────────────
+  lang_choose: "Choose interface language:"
+  lang_set_ru: "Language changed to Russian 🇷🇺"
   lang_set_en: "Language changed to English 🇬🇧"
   lang_btn_ru: "🇷🇺 Russian"
   lang_btn_en: "🇬🇧 English"
 
   # ─── Punishments ─────────────────────────────────────────────────────────────
-  ban_done: "%{user} has been permanently banned."
+  ban_done: "%{user} is banned forever."
   ban_reason: "Reason: %{reason}"
   ban_no_target: "Reply to a user's message."
   ban_self: "You cannot ban yourself."
   ban_staff: "You cannot ban staff."
   ban_already: "User is already banned."
-  unban_done: "%{user} has been unbanned."
+  unban_done: "%{user} is unbanned."
   unban_not_banned: "User is not banned."
 
-  mute_done: "%{user} has been muted for %{duration}."
-  mute_silent_done: "%{user} has been silently muted for %{duration}."
+  mute_done: "%{user} is muted for %{duration}."
+  mute_silent_done: "%{user} is silently muted for %{duration}."
   mute_no_target: "Reply to a user's message."
   mute_self: "You cannot mute yourself."
   mute_staff: "You cannot mute staff."
-  unmute_done: "%{user} has been unmuted."
+  unmute_done: "%{user} is unmuted."
   unmute_not_muted: "User is not muted."
 
-  kick_done: "%{user} has been kicked from the chat."
+  kick_done: "%{user} is kicked from chat."
   kick_no_target: "Reply to a user's message."
   kick_self: "You cannot kick yourself."
   kick_staff: "You cannot kick staff."
 
   warn_done: "%{user} receives a warning [%{warns}/3]."
   warn_reason: "Reason: %{reason}"
-  warn_max: "%{user} received 3/3 warnings — muted for 7 days."
+  warn_max: "%{user} received 3/3 warnings — 7-day mute."
   warn_no_target: "Reply to a user's message."
   warn_self: "You cannot warn yourself."
   warn_staff: "You cannot warn staff."
   unwarn_done: "1 warning removed from %{user} [%{warns}/3]."
   unwarn_no_warns: "User has no warnings."
 
-  gban_done: "%{user} has been globally banned."
-  ungban_done: "%{user} has been globally unbanned."
+  gban_done: "%{user} is globally banned."
+  ungban_done: "%{user} is globally unbanned."
 
   # ─── Reputation ──────────────────────────────────────────────────────────────
-  rep_plus: "%{from} increased %{to}'s reputation. Now: %{rep}"
-  rep_minus: "%{from} decreased %{to}'s reputation. Now: %{rep}"
+  rep_plus: "%{from} increased reputation of %{to}. Now: %{rep}"
+  rep_minus: "%{from} decreased reputation of %{to}. Now: %{rep}"
   rep_self: "You cannot change your own reputation."
   rep_limit: "Daily rating limit reached (%{limit})."
   rep_cooldown: "Too early. Wait %{hours} h."
@@ -172,38 +172,38 @@ en:
   role_member: "Member"
 
   # ─── Settings ────────────────────────────────────────────────────────────────
-  settings_welcome: "Welcome message"
-  settings_antiflood: "Anti-flood"
-  settings_antilinks: "Anti-links"
+  settings_welcome: "Welcome"
+  settings_antiflood: "Antiflood"
+  settings_antilinks: "Antilinks"
   settings_captcha: "Captcha"
-  settings_antispam: "Anti-spam"
+  settings_antispam: "Antispam"
   settings_censorship: "Censorship"
-  settings_panel_title: "Control panel"
+  settings_panel_title: "Control Panel"
   settings_toggle_on: "%{feature} enabled."
   settings_toggle_off: "%{feature} disabled."
 
   # ─── Rules ───────────────────────────────────────────────────────────────────
-  rules_title: "Chat rules"
+  rules_title: "Chat Rules"
   rules_set_done: "Rules updated."
   rules_set_prompt: "Enter new rules:"
   rules_empty: "Rules not set."
 
   # ─── Staff ───────────────────────────────────────────────────────────────────
-  staff_title: "Group staff"
+  staff_title: "Group Staff"
   staff_owner: "Owner"
-  staff_senior_admins: "Senior administrators"
+  staff_senior_admins: "Senior Administrators"
   staff_admins: "Administrators"
   staff_mods: "Moderators"
-  staff_empty: "No staff assigned."
-  staff_add_mod: "%{user} has been appointed moderator."
-  staff_add_admin: "%{user} has been appointed administrator."
-  staff_add_senior: "%{user} has been appointed senior administrator."
-  staff_remove: "%{user} has been removed from staff."
+  staff_empty: "Staff not assigned."
+  staff_add_mod: "%{user} assigned as moderator."
+  staff_add_admin: "%{user} assigned as administrator."
+  staff_add_senior: "%{user} assigned as senior administrator."
+  staff_remove: "%{user} removed from position."
   staff_already: "User is already on staff."
-  staff_not_staff: "User is not a staff member."
+  staff_not_staff: "User is not staff."
 
-  # ─── Top / stats ─────────────────────────────────────────────────────────────
-  top_title: "Activity top"
+  # ─── Top / Statistics ────────────────────────────────────────────────────────
+  top_title: "Activity Top"
   top_today: "Today"
   top_week: "Week"
   top_month: "Month"
@@ -219,43 +219,43 @@ en:
   # ─── Censorship ──────────────────────────────────────────────────────────────
   censorship_added: "Word added to blacklist."
   censorship_removed: "Word removed from blacklist."
-  censorship_list_title: "Banned words"
+  censorship_list_title: "Forbidden words"
   censorship_list_empty: "List is empty."
   censorship_cleared: "List cleared."
   censorship_not_found: "Word not found in list."
-  censorship_deleted_msg: "Message deleted: banned word."
+  censorship_deleted_msg: "Message deleted: forbidden word."
 
   # ─── Report ──────────────────────────────────────────────────────────────────
   report_sent: "Report sent to administrators."
-  report_title: "Report"
+  report_title: "Complaint"
   report_from: "From"
-  report_on: "About"
-  report_no_target: "Reply to the violator's message."
+  report_on: "On"
+  report_no_target: "Reply to a violator's message."
 
-  # ─── Welcome ─────────────────────────────────────────────────────────────────
+  # ─── Welcome new members ─────────────────────────────────────────────────────
   welcome_title: "Welcome!"
   welcome_text: "Welcome to %{chat}, %{user}!\nCheck the rules: !rules"
 
-  # ─── Vote ────────────────────────────────────────────────────────────────────
-  vote_title: "Vote"
+  # ─── Voting ──────────────────────────────────────────────────────────────────
+  vote_title: "Voting"
   vote_yes: "Yes (%{count})"
   vote_no: "No (%{count})"
-  vote_end_btn: "End"
+  vote_end_btn: "Finish"
   vote_result: "Result: Yes — %{yes} | No — %{no}"
-  vote_staff_only: "Only staff can end the vote."
+  vote_staff_only: "Only staff can finish the voting."
   vote_prompt: "Usage: !vote [question]"
 
   # ─── Media / readonly / slowmode ─────────────────────────────────────────────
-  media_allowed: "Media files are allowed in the group."
-  media_forbidden: "Media files are forbidden in the group."
-  readonly_on: "Chat is closed. Only staff can write."
-  readonly_off: "Chat is open. Everyone can write."
+  media_allowed: "Media files allowed in group."
+  media_forbidden: "Media files forbidden in group."
+  readonly_on: "Chat closed. Only staff can write."
+  readonly_off: "Chat open. Everyone can write."
   slowmode_off: "Slowmode disabled."
   slowmode_set: "Slowmode: %{sec} sec. between messages."
   slowmode_usage: "Usage: !slowmode [seconds]\nExample: !slowmode 30\n!slowmode 0 — disable"
 
-  # ─── Chat info ───────────────────────────────────────────────────────────────
-  chat_info_title: "Chat information"
+  # ─── Chat-info ───────────────────────────────────────────────────────────────
+  chat_info_title: "Chat Information"
   chat_info_name: "Name"
   chat_info_id: "ID"
   chat_info_members: "Members"
@@ -271,57 +271,57 @@ en:
 
   # ─── Pin ─────────────────────────────────────────────────────────────────────
   pin_done: "Message pinned."
-  pin_no_target: "Reply to a message to pin it."
+  pin_no_target: "Reply to a message to pin."
   unpin_done: "All messages unpinned."
 
   # ─── Cleanup ─────────────────────────────────────────────────────────────────
   cleanup_done: "Deleted %{count} messages."
-  cleanup_usage: "Usage: !clean [count]"
+  cleanup_usage: "Usage: !cleanup [amount]"
 
   # ─── Captcha ─────────────────────────────────────────────────────────────────
   captcha_title: "Verification"
   captcha_text: "%{user}, press the button below within 60 seconds to confirm you are not a bot."
   captcha_btn: "I'm not a bot ✅"
-  captcha_passed: "%{user} passed verification."
-  captcha_failed: "%{user} failed verification and was kicked."
+  captcha_passed: "%{user} passed the verification."
+  captcha_failed: "%{user} failed the verification and was kicked."
 
-  # ─── Anti-flood ──────────────────────────────────────────────────────────────
+  # ─── Antiflood ───────────────────────────────────────────────────────────────
   antiflood_warn: "%{user} — flood detected. Warning %{warns}/3."
   antiflood_mute: "%{user} muted for flood for %{duration}."
 
-  # ─── Anti-links ──────────────────────────────────────────────────────────────
+  # ─── Antilinks ───────────────────────────────────────────────────────────────
   antilinks_deleted: "Link deleted. %{user} receives a warning."
 
-  # ─── Anti-spam ───────────────────────────────────────────────────────────────
+  # ─── Antispam ────────────────────────────────────────────────────────────────
   antispam_mute: "%{user} muted for spam for %{duration}."
 
-  # ─── Reputation titles ───────────────────────────────────────────────────────
-  titles_list_title: "Reputation titles"
-  titles_list_empty: "No titles set."
+  # ─── Reputation — titles ─────────────────────────────────────────────────────
+  titles_list_title: "Reputation Titles"
+  titles_list_empty: "Titles not set."
   title_added: "Title added: %{title} (%{min}–%{max})"
   title_removed: "Title #%{num} removed."
-  title_not_found: "Title with that number not found."
-  title_usage: "Usage: !addtitle [min] [max] [name]"
+  title_not_found: "Title with this number not found."
+  title_usage: "Usage: !addtitle [min] [max] [title]"
 
   # ─── Violation history ───────────────────────────────────────────────────────
-  history_title: "Violation history"
+  history_title: "Violation History"
   history_empty: "No violations."
   history_warns: "Warnings"
   history_violations: "Violations"
   history_muted: "Muted until"
 
   # ─── Feature status ──────────────────────────────────────────────────────────
-  status_title: "Feature status"
+  status_title: "Feature Status"
 
-  # ─── Missing keys (added by patch) ───────────────────────────────────────────
-  help_rep_text: "<b>How it works:</b>\nReply to a message with one of the triggers.\n\n<b>Increase:</b> <code>+</code>, <code>++</code>, <code>+rep</code>, <code>respect</code>, <code>nice</code>, <code>fire</code>, <code>top</code>, <code>good job</code>, <code>thanks</code>, <code>gg</code> etc.\n\n<b>Decrease:</b> <code>-</code>, <code>--</code>, <code>-rep</code>, <code>dislike</code>, <code>cringe</code>, <code>trash</code>, <code>bad</code> etc.\n\n<b>L</b> <code>!rating</code> [@user] — user reputation\n<b>L</b> <code>!reputation</code> — top-25 by reputation\n<b>L</b> <code>!repsign</code> +5/-3 — change manually (staff)\n<b>L</b> <code>!titles</code> — list of reputation titles\n<b>L</b> <code>!addtitle</code> [min] [max] [name]\n<b>L</b> <code>!removetitle</code> [number]\n\nLimit: 5 ratings per day (configurable in panel)."
+  # ─── Missing keys ────────────────────────────────────────────────────────────
+  help_rep_text: "<b>How it works:</b>\nReply to a message with one of the triggers.\n\n<b>Increase:</b> <code>+</code>, <code>++</code>, <code>+rep</code>, <code>respect</code>, <code>nice</code>, <code>fire</code>, <code>top</code>, <code>well done</code>, <code>thanks</code>, <code>gg</code> etc.\n\n<b>Decrease:</b> <code>-</code>, <code>--</code>, <code>-rep</code>, <code>dis</code>, <code>nonsense</code>, <code>cringe</code>, <code>trash</code>, <code>bad</code> etc.\n\n<b>L</b> <code>!rating</code> [@user] — user reputation\n<b>L</b> <code>!reputation</code> — top-25 by reputation\n<b>L</b> <code>!repmark</code> +5/-3 — change manually (staff)\n<b>L</b> <code>!titles</code> — reputation titles list\n<b>L</b> <code>!addtitle</code> [min] [max] [title]\n<b>L</b> <code>!removetitle</code> [number]\n\nLimit: 5 ratings per day (change in panel)."
 
-  help_info_text: "<b>L</b> <code>!staff</code> — group staff list\n<b>L</b> <code>!rules</code> — community rules\n<b>L</b> <code>!top</code> / <code>!top day</code> / <code>!top week</code> / <code>!top month</code> / <code>!top all</code>\n<b>L</b> <code>!rating</code> [@user/id/reply] — reputation\n<b>L</b> <code>!reputation</code> — top-25 by reputation\n<b>L</b> <code>!info</code> — user profile\n<b>L</b> <code>!history</code> — violation history\n<b>L</b> <code>!warnings</code> — user warnings\n<b>L</b> <code>!who</code> — role and reputation (reply)\n<b>L</b> <code>!about me</code> — your profile\n<b>L</b> <code>!chat</code> — chat information\n<b>L</b> <code>!my warnings</code> — your warnings\n<b>L</b> <code>!status</code> — feature status\n<b>L</b> <code>!titles</code> — reputation titles\n<b>L</b> <code>!censorship list</code> — banned words"
+  help_info_text: "<b>L</b> <code>!staff</code> — group staff list\n<b>L</b> <code>!rules</code> — community rules\n<b>L</b> <code>!top</code> / <code>!top day</code> / <code>!top week</code> / <code>!top month</code> / <code>!top all</code>\n<b>L</b> <code>!rating</code> [@user/id/reply] — reputation\n<b>L</b> <code>!reputation</code> — top-25 by reputation\n<b>L</b> <code>!info</code> — user profile\n<b>L</b> <code>!history</code> — violation history\n<b>L</b> <code>!warnings</code> — user warnings\n<b>L</b> <code>!who</code> — role and reputation (reply)\n<b>L</b> <code>!about me</code> — your profile\n<b>L</b> <code>!chat</code> — chat information\n<b>L</b> <code>!my warns</code> — your warnings\n<b>L</b> <code>!status</code> — group feature status\n<b>L</b> <code>!titles</code> — reputation titles\n<b>L</b> <code>!censorship list</code> — forbidden words"
 
-  help_settings_text: "<b>L</b> <code>!panel</code> — full group control panel\n<b>L</b> <code>!settings</code> — quick settings\n<b>L</b> <code>!setrules</code> [text] — update rules\n<b>L</b> <code>!link</code> [name] — create invite link\n<b>L</b> <code>!pin</code> — pin message (reply)\n<b>L</b> <code>!unpin</code> — unpin all messages\n<b>L</b> <code>!broadcast</code> [text] — broadcast to all groups (bot owner)\n<b>L</b> <code>!gbroadcast</code> [text] — broadcast to current group (admin)\n\nToggle in <code>!panel</code>:\nwelcome, antiflood, antilinks, antispam, censorship"
+  help_settings_text: "<b>L</b> <code>!panel</code> — full group control panel\n<b>L</b> <code>!settings</code> — quick settings\n<b>L</b> <code>!setrules</code> [text] — update rules\n<b>L</b> <code>!link</code> [name] — create invite link\n<b>L</b> <code>!pin</code> — pin message (reply)\n<b>L</b> <code>!unpin</code> — unpin all messages\n<b>L</b> <code>!broadcast</code> [text] — broadcast to all groups (bot owner)\n<b>L</b> <code>!gbroadcast</code> [text] — broadcast to current group (admin)\n\nEnable/disable in <code>!panel</code>:\nwelcome, antiflood, antilinks, antispam, censorship"
 
-  help_rights_text: "<b>L</b> <code>!mod</code> — appoint moderator (reply)\n<b>L</b> <code>!admin</code> — appoint administrator (reply)\n<b>L</b> <code>!senior</code> — appoint senior admin (reply)\n<b>L</b> <code>!deadmin</code> — remove from position (reply)\n\nOr via <code>!panel</code> → Staff — visual manager.\n\nAppointing administrators — owner only.\nAppointing moderators — any administrator."
+  help_rights_text: "<b>L</b> <code>!moder</code> — assign moderator (reply)\n<b>L</b> <code>!admin</code> — assign administrator (reply)\n<b>L</b> <code>!senior</code> — assign senior admin (reply)\n<b>L</b> <code>!deadmin</code> — remove from position (reply)\n\nOr through <code>!panel</code> → Staff — visual manager.\n\nAssigning administrators — owner only.\nAssigning moderators — any administrator."
 
   rules_not_set: "Rules not set."
-  rules_punishments: "Punishments:\n• 1st violation — warning.\n• 2nd violation — mute.\n• 3rd violation — ban.\n\n<i>Repeated ban after unban — no warnings.</i>"
+  rules_punishments: "Punishments:\n• 1 violation — warning.\n• 2 violation — mute.\n• 3 violation — ban.\n\n<i>Repeated ban after unban — no warnings.</i>"
   channel_label: "Channel"
